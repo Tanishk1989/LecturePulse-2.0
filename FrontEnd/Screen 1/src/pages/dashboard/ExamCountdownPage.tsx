@@ -499,15 +499,19 @@ export function ExamCountdownPage() {
                       return <div key={`spacer-${idx}`} className="aspect-square bg-transparent" />
                     }
 
+                    // Non-spacer cells always have these fields; defaults satisfy TS on the mixed array type
+                    const durationHours = day.durationHours ?? 0
+                    const colorType = day.colorType ?? 'rest'
+
                     // Format hover tooltip info
                     const formattedCellDate = day.date ? day.date.toLocaleDateString('en-US', {
                       month: 'short',
                       day: 'numeric'
                     }) : ''
 
-                    const hours = Math.floor(day.durationHours)
-                    const minutes = Math.round((day.durationHours - hours) * 60)
-                    const timeLabel = day.durationHours > 0 
+                    const hours = Math.floor(durationHours)
+                    const minutes = Math.round((durationHours - hours) * 60)
+                    const timeLabel = durationHours > 0 
                       ? `${hours}h ${minutes}m` 
                       : 'No study recorded'
 
@@ -527,7 +531,7 @@ export function ExamCountdownPage() {
                         } : {}}
                         className={cn(
                           "aspect-square rounded-lg flex items-center justify-center cursor-pointer transition-all duration-300 relative group select-none",
-                          getCellColorClass(day.colorType, day.isExamDay),
+                          getCellColorClass(colorType, day.isExamDay ?? false),
                           day.isToday && "today-cell-pulse",
                           day.isFuture && "pointer-events-none opacity-40"
                         )}
@@ -535,7 +539,7 @@ export function ExamCountdownPage() {
                         {/* Day number inside cell */}
                         <span className={cn(
                           "text-[10px] font-bold select-none",
-                          day.colorType === 'green' || day.colorType === 'yellow' || day.colorType === 'orange' || day.colorType === 'red'
+                          colorType === 'green' || colorType === 'yellow' || colorType === 'orange' || colorType === 'red'
                             ? 'text-black' 
                             : 'text-muted-secondary group-hover:text-foreground'
                         )}>
@@ -571,7 +575,7 @@ export function ExamCountdownPage() {
                                     <div className="font-semibold text-accent">{timeLabel}</div>
                                   </div>
 
-                                  {day.subjects.length > 0 && (
+                                  {day.subjects && day.subjects.length > 0 && (
                                     <div>
                                       <span className="text-muted text-[10px]">Subjects:</span>
                                       <div className="space-y-0.5 mt-0.5">
@@ -585,16 +589,16 @@ export function ExamCountdownPage() {
                                     </div>
                                   )}
 
-                                  {day.durationHours > 0 && (
+                                  {durationHours > 0 && (
                                     <div className="flex justify-between items-center text-[10px] pt-1 border-t border-white/[0.04]">
                                       <span className="text-muted">Focus Score:</span>
                                       <span className="font-bold text-[#A3FF12]">
-                                        {Math.floor(82 + (day.durationHours * 3) > 98 ? 98 : 82 + (day.durationHours * 3))}%
+                                        {Math.floor(82 + (durationHours * 3) > 98 ? 98 : 82 + (durationHours * 3))}%
                                       </span>
                                     </div>
                                   )}
 
-                                  {day.colorType === 'red' && (
+                                  {colorType === 'red' && (
                                     <div className="text-[9px] font-semibold text-red-400 flex items-center gap-1">
                                       <span>⚠️</span>
                                       <span>Missed study goal</span>
