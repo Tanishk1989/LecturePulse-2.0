@@ -17,6 +17,7 @@ import streakRouter from './routes/streaks'
 import examCountdownRouter from './routes/examCountdown'
 import { ensureUploadDirs, UPLOADS_ROOT } from './config/storage'
 import { prisma } from './config/db'
+import { resolveApiError } from './utils/apiError'
 
 ensureUploadDirs()
 
@@ -60,11 +61,12 @@ app.get('/api/health/db', async (_req, res) => {
     res.json({ status: 'healthy', database: 'connected', timestamp: new Date().toISOString() })
   } catch (error) {
     console.error('[Health] Database check failed:', error)
-    res.status(503).json({
+    const resolved = resolveApiError(error, 'Database health check failed.')
+    res.status(resolved.status).json({
       status: 'unhealthy',
       database: 'disconnected',
-      error:
-        'Database is unavailable. If you use Supabase, resume your project in the dashboard and verify DATABASE_URL.',
+      code: resolved.code,
+      error: resolved.message,
       timestamp: new Date().toISOString(),
     })
   }

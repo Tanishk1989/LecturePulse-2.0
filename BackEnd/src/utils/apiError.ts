@@ -7,6 +7,22 @@ export interface ResolvedApiError {
   code: string
 }
 
+const DB_UNAVAILABLE_MESSAGE =
+  'Database is unreachable. If you use Supabase, open the project dashboard, resume the project if paused, and verify DATABASE_URL on Render.'
+
+const DB_AUTH_FAILED_MESSAGE =
+  'Database login failed. In Supabase go to Project Settings → Database, reset the database password, copy the new URI connection string, and set it as DATABASE_URL on Render (URL-encode special characters in the password).'
+
+function isDbAuthMessage(message: string): boolean {
+  const lower = message.toLowerCase()
+  return (
+    lower.includes('authentication failed') ||
+    lower.includes('password authentication failed') ||
+    lower.includes('provided database credentials') ||
+    lower.includes('invalid credentials')
+  )
+}
+
 function isDbConnectivityMessage(message: string): boolean {
   const lower = message.toLowerCase()
   return (
@@ -15,7 +31,6 @@ function isDbConnectivityMessage(message: string): boolean {
     lower.includes('econnrefused') ||
     lower.includes('etimedout') ||
     lower.includes('connection timed out') ||
-    lower.includes('password authentication failed') ||
     lower.includes('the database server is not accepting connections')
   )
 }
@@ -23,22 +38,36 @@ function isDbConnectivityMessage(message: string): boolean {
 export function resolveApiError(error: unknown, fallback: string): ResolvedApiError {
   const raw = error instanceof Error ? error.message : String(error)
 
+  if (isDbAuthMessage(raw)) {
+    return {
+      status: 503,
+      code: 'DB_AUTH_FAILED',
+      message: DB_AUTH_FAILED_MESSAGE,
+    }
+  }
+
   if (error instanceof Prisma.PrismaClientInitializationError || isDbConnectivityMessage(raw)) {
     return {
       status: 503,
       code: 'DB_UNAVAILABLE',
-      message:
-        'Database is unavailable. If you use Supabase, open your project dashboard and resume the database, then verify DATABASE_URL in BackEnd/.env.',
+      message: DB_UNAVAILABLE_MESSAGE,
     }
   }
 
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
-    if (['P1000', 'P1001', 'P1002', 'P1017'].includes(error.code)) {
+    if (error.code === 'P1000') {
+      return {
+        status: 503,
+        code: 'DB_AUTH_FAILED',
+        message: DB_AUTH_FAILED_MESSAGE,
+      }
+    }
+
+    if (['P1001', 'P1002', 'P1017'].includes(error.code)) {
       return {
         status: 503,
         code: 'DB_UNAVAILABLE',
-        message:
-          'Database is unavailable. If you use Supabase, open your project dashboard and resume the database, then verify DATABASE_URL in BackEnd/.env.',
+        message: DB_UNAVAILABLE_MESSAGE,
       }
     }
   }

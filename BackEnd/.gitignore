@@ -1,1 +1,5 @@
 uploads/
+.env
+.env.*
+!.env.example
+firebase-service-account.json

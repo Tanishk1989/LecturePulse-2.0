@@ -1,11 +1,27 @@
 const DB_UNAVAILABLE_MESSAGE =
-  'Unable to connect to the database. Your Supabase project may be paused — open the Supabase dashboard, resume the project, and verify DATABASE_URL in BackEnd/.env.'
+  'Unable to reach the database. Open the Supabase dashboard, resume the project if it is paused, and verify DATABASE_URL is set on Render.'
+
+const DB_AUTH_FAILED_MESSAGE =
+  'Database login failed. Reset your Supabase database password, copy the new connection URI, and update DATABASE_URL on Render.'
 
 const GENERIC_SERVER_MESSAGE = 'Something went wrong on our end. Please try again in a moment.'
 
 export function sanitizeApiErrorMessage(message: string, code?: string): string {
+  if (code === 'DB_AUTH_FAILED') {
+    return DB_AUTH_FAILED_MESSAGE
+  }
+
   if (code === 'DB_UNAVAILABLE') {
     return DB_UNAVAILABLE_MESSAGE
+  }
+
+  const lower = message.toLowerCase()
+  if (
+    lower.includes('authentication failed') ||
+    lower.includes('provided database credentials') ||
+    lower.includes('password authentication failed')
+  ) {
+    return DB_AUTH_FAILED_MESSAGE
   }
 
   const lower = message.toLowerCase()
@@ -28,5 +44,11 @@ export function sanitizeApiErrorMessage(message: string, code?: string): string 
 }
 
 export function isDatabaseUnavailableError(message: string, code?: string): boolean {
-  return code === 'DB_UNAVAILABLE' || sanitizeApiErrorMessage(message, code) === DB_UNAVAILABLE_MESSAGE
+  const sanitized = sanitizeApiErrorMessage(message, code)
+  return (
+    code === 'DB_UNAVAILABLE' ||
+    code === 'DB_AUTH_FAILED' ||
+    sanitized === DB_UNAVAILABLE_MESSAGE ||
+    sanitized === DB_AUTH_FAILED_MESSAGE
+  )
 }

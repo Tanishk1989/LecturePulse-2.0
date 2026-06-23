@@ -17,8 +17,10 @@ const knowledgeGraph_1 = __importDefault(require("./routes/knowledgeGraph"));
 const uploads_1 = __importDefault(require("./routes/uploads"));
 const profiles_1 = __importDefault(require("./routes/profiles"));
 const streaks_1 = __importDefault(require("./routes/streaks"));
+const examCountdown_1 = __importDefault(require("./routes/examCountdown"));
 const storage_1 = require("./config/storage");
 const db_1 = require("./config/db");
+const apiError_1 = require("./utils/apiError");
 (0, storage_1.ensureUploadDirs)();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
@@ -34,6 +36,16 @@ app.use('/api/knowledge-graph', knowledgeGraph_1.default);
 app.use('/api/uploads', uploads_1.default);
 app.use('/api/profiles', profiles_1.default);
 app.use('/api/streaks', streaks_1.default);
+app.use('/api/exam-countdown', examCountdown_1.default);
+app.get('/', (_req, res) => {
+    res.json({
+        name: 'LecturePulse API',
+        status: 'running',
+        docs: 'All routes are under /api',
+        health: '/api/health',
+        database: '/api/health/db',
+    });
+});
 app.get('/api/health', (_req, res) => {
     res.json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
@@ -44,10 +56,12 @@ app.get('/api/health/db', async (_req, res) => {
     }
     catch (error) {
         console.error('[Health] Database check failed:', error);
-        res.status(503).json({
+        const resolved = (0, apiError_1.resolveApiError)(error, 'Database health check failed.');
+        res.status(resolved.status).json({
             status: 'unhealthy',
             database: 'disconnected',
-            error: 'Database is unavailable. If you use Supabase, resume your project in the dashboard and verify DATABASE_URL.',
+            code: resolved.code,
+            error: resolved.message,
             timestamp: new Date().toISOString(),
         });
     }
