@@ -10,7 +10,6 @@ interface LectureSectionProps {
   onDelete: (id: string) => void
   onRename: (id: string, title: string) => void
   onToggleFavorite: (id: string) => void
-  horizontal?: boolean
 }
 
 export function LectureSection({
@@ -20,7 +19,6 @@ export function LectureSection({
   onDelete,
   onRename,
   onToggleFavorite,
-  horizontal = false,
 }: LectureSectionProps) {
   if (lectures.length === 0) return null
 
@@ -28,39 +26,22 @@ export function LectureSection({
     <section className="space-y-4">
       <div className="flex items-center gap-2">
         {icon === 'star' && <Star className="h-4 w-4 text-accent fill-accent/30" />}
-        <h2 className="text-sm font-semibold tracking-[0.18em] uppercase text-muted">{title}</h2>
+        <h2 className="text-sm font-semibold tracking-[0.18em] uppercase text-muted text-left">{title}</h2>
       </div>
 
-      {horizontal ? (
-        <div className="-mx-1 flex gap-4 overflow-x-auto px-1 pb-2 scrollbar-thin">
-          <AnimatePresence mode="popLayout">
-            {lectures.map((lecture) => (
-              <LectureCard
-                key={lecture.id}
-                lecture={lecture}
-                onDelete={onDelete}
-                onRename={onRename}
-                onToggleFavorite={onToggleFavorite}
-                compact
-              />
-            ))}
-          </AnimatePresence>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <AnimatePresence mode="popLayout">
-            {lectures.map((lecture) => (
-              <LectureCard
-                key={lecture.id}
-                lecture={lecture}
-                onDelete={onDelete}
-                onRename={onRename}
-                onToggleFavorite={onToggleFavorite}
-              />
-            ))}
-          </AnimatePresence>
-        </div>
-      )}
+      <div className="divide-y divide-white/[0.05] rounded-2xl border border-white/[0.08] bg-[#0d0d0d]/90 overflow-hidden backdrop-blur-xl shadow-xl">
+        <AnimatePresence mode="popLayout">
+          {lectures.map((lecture) => (
+            <LectureCard
+              key={lecture.id}
+              lecture={lecture}
+              onDelete={onDelete}
+              onRename={onRename}
+              onToggleFavorite={onToggleFavorite}
+            />
+          ))}
+        </AnimatePresence>
+      </div>
     </section>
   )
 }

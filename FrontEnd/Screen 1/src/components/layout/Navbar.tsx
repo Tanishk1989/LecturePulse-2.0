@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { LogOut, Menu, X } from 'lucide-react'
+import { LogOut, Menu, X, Sun, Moon } from 'lucide-react'
 import { Logo } from '@/components/shared/Logo'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/ui/ToastProvider'
 import { useScrollOpacity } from '@/hooks/useScrollOpacity'
 import { getAuthErrorMessage } from '@/lib/authErrors'
+import { useTheme } from '@/context/ThemeContext'
 import { cn } from '@/lib/utils'
 
 const navLinks = [
@@ -77,6 +78,7 @@ export function Navbar() {
   const scrollOpacity = useScrollOpacity(80)
   const location = useLocation()
   const { user, loading } = useAuth()
+  const { theme, toggleTheme } = useTheme()
   const isLanding = location.pathname === '/'
 
   const handleNavClick = (href: string) => {
@@ -90,9 +92,13 @@ export function Navbar() {
     <header
       className="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
       style={{
-        backgroundColor: `rgba(5, 5, 5, ${scrollOpacity * 0.85})`,
+        backgroundColor: theme === 'light'
+          ? `rgba(250, 245, 248, ${scrollOpacity * 0.85})`
+          : `rgba(5, 5, 5, ${scrollOpacity * 0.85})`,
         backdropFilter: scrollOpacity > 0 ? 'blur(12px)' : 'none',
-        borderBottom: scrollOpacity > 0 ? '1px solid rgba(255,255,255,0.06)' : '1px solid transparent',
+        borderBottom: scrollOpacity > 0
+          ? (theme === 'light' ? '1px solid var(--border)' : '1px solid rgba(255,255,255,0.06)')
+          : '1px solid transparent',
       }}
     >
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
@@ -117,6 +123,15 @@ export function Navbar() {
         )}
 
         <div className="hidden md:flex items-center gap-3">
+          <button
+            onClick={toggleTheme}
+            className="p-2 rounded-lg text-muted hover:text-foreground hover:bg-white/[0.04] transition-all duration-300 cursor-pointer flex items-center justify-center shrink-0"
+            aria-label="Toggle theme"
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
+
           {loading ? (
             <div className="h-9 w-28 animate-pulse rounded-lg bg-white/[0.06]" />
           ) : user ? (
@@ -163,6 +178,18 @@ export function Navbar() {
               </a>
             ))}
           <div className={cn('flex flex-col gap-2', isLanding && 'mt-4 pt-4 border-t border-white/[0.06]')}>
+            <button
+              onClick={toggleTheme}
+              className="flex items-center justify-between w-full p-2.5 rounded-lg text-sm text-muted hover:text-foreground hover:bg-white/[0.04] transition-all duration-300 cursor-pointer"
+              aria-label="Toggle theme"
+            >
+              <span className="font-medium">Theme</span>
+              <div className="flex items-center gap-1.5 text-muted hover:text-foreground">
+                <span className="text-xs capitalize">{theme}</span>
+                {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </div>
+            </button>
+
             {loading ? (
               <div className="h-10 w-full animate-pulse rounded-lg bg-white/[0.06]" />
             ) : user ? (

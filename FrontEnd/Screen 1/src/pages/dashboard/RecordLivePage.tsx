@@ -4,6 +4,7 @@ import { Check, Mic } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ParticleField } from '@/components/effects/ParticleField'
 import { LiveRecordingMic } from '@/components/record/LiveRecordingMic'
+import { LiveNotesDraftPanel } from '@/components/record/LiveNotesDraftPanel'
 import { LiveStatusHeader } from '@/components/record/LiveStatusHeader'
 import { LiveTranscriptPanel } from '@/components/record/LiveTranscriptPanel'
 import { PostRecordingResults } from '@/components/record/PostRecordingResults'
@@ -11,6 +12,8 @@ import { RecordingControls } from '@/components/record/RecordingControls'
 import { PulseIcon } from '@/components/shared/PulseIcon'
 import { useToast } from '@/components/ui/ToastProvider'
 import { useAuthContext } from '@/context/AuthContext'
+import { useDashboard } from '@/context/DashboardContext'
+import { useLiveNotesDraft } from '@/hooks/useLiveNotesDraft'
 import { useLiveTranscription } from '@/hooks/useLiveTranscription'
 import { useLectures } from '@/hooks/useLectures'
 import {
@@ -20,6 +23,7 @@ import {
   type Flashcard,
 } from '@/services/aiGenerationService'
 import { createFlashcards } from '@/services/flashcardService'
+import { triggerLectureProcessing } from '@/services/processingService'
 import { formatDuration } from '@/lib/formatDuration'
 import { cn } from '@/lib/utils'
 
@@ -42,11 +46,24 @@ function RecordLiveBackground() {
   )
 }
 
+const SUBJECTS = [
+  'Computer Science',
+  'Mathematics',
+  'Physics',
+  'Biology',
+  'History',
+  'Economics',
+  'Literature',
+]
+
 export function RecordLivePage() {
   const navigate = useNavigate()
   const { user } = useAuthContext()
+  const { openTutor } = useDashboard()
   const { toast } = useToast()
   const { uploadLecture } = useLectures()
+  const [subjectSelect, setSubjectSelect] = useState('')
+  const [customSubject, setCustomSubject] = useState('')
 
   const {
     permission,
@@ -60,15 +77,18 @@ export function RecordLivePage() {
     detectedLanguage,
     transcriptionError,
     isProcessingChunk,
+    pendingChunkCount,
     latestChunkId,
-    isSpeechRecognitionSupported,
     startLiveRecording,
     pauseLiveRecording,
     resumeLiveRecording,
     stopLiveRecording,
     resetAll,
     retryTranscription,
-  } = useLiveTranscription()
+    saveTranscript,
+  } = useLiveTranscription(user?.uid)
+
+  const liveNotes = useLiveNotesDraft(fullText, status === 'recording')
 
   const [phase, setPhase] = useState<PostProcessPhase>('idle')
   const [savedLectureId, setSavedLectureId] = useState<string | null>(null)
@@ -87,12 +107,12 @@ export function RecordLivePage() {
   const showPostRecording = phase === 'generating' || phase === 'done'
 
   const handleStart = useCallback(async () => {
-    if (!isSpeechRecognitionSupported) {
-      toast.error('Speech recognition is not supported. Use Chrome or Edge.')
+    if (!user) {
+      toast.error('Sign in to use live recording.')
       return
     }
     await startLiveRecording()
-  }, [isSpeechRecognitionSupported, startLiveRecording, toast])
+  }, [startLiveRecording, toast, user])
 
   const handleStop = useCallback(async () => {
     await stopLiveRecording()
@@ -112,6 +132,7 @@ export function RecordLivePage() {
 
       try {
         if (user) {
+          const subjectVal = subjectSelect === 'other' ? customSubject.trim() : subjectSelect
           const saved = await uploadLecture({
             title: transcriptText
               ? transcriptText.slice(0, 60) + (transcriptText.length > 60 ? '…' : '')
@@ -121,11 +142,22 @@ export function RecordLivePage() {
             mediaKind: 'audio',
             source: 'record',
             mimeType: audioBlob.type || 'audio/webm',
+            skipProcessing: true,
+            subject: subjectVal || undefined,
           })
 
           if (saved) {
             lectureId = saved.id
             setSavedLectureId(saved.id)
+            if (transcriptText) {
+              await saveTranscript(user.uid, saved.id, elapsedSeconds)
+              void triggerLectureProcessing(saved.id, {
+                generateNotes: true,
+                forceRetranscribe: false,
+              })
+            } else {
+              void triggerLectureProcessing(saved.id)
+            }
           }
         }
 
@@ -185,6 +217,7 @@ export function RecordLivePage() {
     user,
     uploadLecture,
     toast,
+    saveTranscript,
   ])
 
   const handleRecordAnother = useCallback(() => {
@@ -196,8 +229,11 @@ export function RecordLivePage() {
     setSummaryState('idle')
     setFlashcardsState('idle')
     setAskAiEnabled(false)
+    liveNotes.reset()
     processingRef.current = false
-  }, [resetAll])
+    setSubjectSelect('')
+    setCustomSubject('')
+  }, [liveNotes, resetAll])
 
   return (
     <div className="relative -mx-5 -my-7 lg:-mx-8 lg:-my-9 min-h-[calc(100dvh-72px)]">
@@ -242,8 +278,8 @@ export function RecordLivePage() {
                   </p>
                   <p className="mt-2 text-sm text-muted">
                     {fullText
-                      ? 'Preview ready — full transcript and notes are processing in the background.'
-                      : 'Recording saved — transcription is processing in the background.'}
+                      ? 'Preview ready — full lecture text and notes are processing in the background.'
+                      : 'Recording saved — processing continues in the background.'}
                   </p>
 
                   {fullText && (
@@ -255,7 +291,12 @@ export function RecordLivePage() {
                       flashcardsState={flashcardsState}
                       askAiEnabled={askAiEnabled}
                       onAskAi={() => {
-                        if (savedLectureId) navigate(`/transcript/${savedLectureId}`)
+                        if (savedLectureId) {
+                          navigate(`/transcript/${savedLectureId}`)
+                          openTutor('Help me understand this lecture')
+                        } else {
+                          openTutor()
+                        }
                       }}
                     />
                   )}
@@ -277,10 +318,10 @@ export function RecordLivePage() {
                         to={`/transcript/${savedLectureId}`}
                         className={cn(
                           'inline-flex items-center justify-center rounded-full bg-accent px-6 py-3 text-sm font-medium text-background',
-                          'shadow-[0_0_24px_rgba(214,162,11,0.2)] hover:bg-accent-soft hover:-translate-y-0.5 transition-all duration-300 cursor-pointer',
+                          'shadow-[0_0_24px_rgba(var(--color-accent-rgb),0.2)] hover:bg-accent-soft hover:-translate-y-0.5 transition-all duration-300 cursor-pointer',
                         )}
                       >
-                        View Transcript
+                        View Progress
                       </Link>
                     )}
                     <Link
@@ -310,7 +351,7 @@ export function RecordLivePage() {
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -16 }}
-                  className="flex flex-col items-center text-center"
+                  className="flex flex-col items-center text-center w-full max-w-sm mx-auto"
                 >
                   <LiveRecordingMic isRecording={false} isPaused={false} />
                   <p className="mt-8 max-w-md text-xl font-semibold text-foreground md:text-2xl">
@@ -319,12 +360,45 @@ export function RecordLivePage() {
                   <p className="mt-2 max-w-sm text-sm text-muted leading-relaxed">
                     LecturePulse will listen.
                   </p>
+
+                  <div className="mt-6 w-full rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 text-left">
+                    <label
+                      htmlFor="subject-select"
+                      className="block text-xs font-semibold text-muted mb-2 uppercase tracking-wider"
+                    >
+                      Lecture Subject (Optional)
+                    </label>
+                    <div className="flex flex-col gap-3">
+                      <select
+                        id="subject-select"
+                        value={subjectSelect}
+                        onChange={(e) => setSubjectSelect(e.target.value)}
+                        className="w-full rounded-xl border border-white/[0.08] bg-[#0E0E0E] px-3 py-2 text-sm text-foreground outline-none focus:border-accent/35"
+                      >
+                        <option value="" className="bg-[#0D0D0D]">Select a subject...</option>
+                        {SUBJECTS.map((sub) => (
+                          <option key={sub} value={sub} className="bg-[#0D0D0D]">{sub}</option>
+                        ))}
+                        <option value="other" className="bg-[#0D0D0D]">Other (Type Custom...)</option>
+                      </select>
+                      {subjectSelect === 'other' && (
+                        <input
+                          type="text"
+                          value={customSubject}
+                          onChange={(e) => setCustomSubject(e.target.value)}
+                          placeholder="Type custom subject (e.g. Chemistry, Philosophy)"
+                          className="w-full rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-foreground outline-none focus:border-accent/35"
+                        />
+                      )}
+                    </div>
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => void handleStart()}
                     className={cn(
-                      'mt-8 inline-flex items-center gap-2.5 rounded-full bg-accent px-8 py-3.5 text-sm font-medium text-background',
-                      'shadow-[0_0_32px_rgba(214,162,11,0.25)] hover:bg-accent-soft hover:-translate-y-0.5 transition-all duration-300 cursor-pointer',
+                      'mt-6 inline-flex items-center gap-2.5 rounded-full bg-accent px-8 py-3.5 text-sm font-medium text-background',
+                      'shadow-[0_0_32px_rgba(var(--color-accent-rgb),0.25)] hover:bg-accent-soft hover:-translate-y-0.5 transition-all duration-300 cursor-pointer',
                     )}
                   >
                     <Mic className="h-4 w-4" strokeWidth={2} />
@@ -392,28 +466,35 @@ export function RecordLivePage() {
                   className="flex flex-col items-center gap-4 text-center"
                 >
                   <PulseIcon size={48} glow />
-                  <p className="text-sm text-muted">Saving transcript…</p>
+                  <p className="text-sm text-muted">Saving lecture…</p>
                 </motion.div>
               ) : null}
             </AnimatePresence>
           </div>
 
-          {/* BOTTOM — Live transcript */}
+          {/* BOTTOM — Live captions */}
           {(isActiveSession || (status === 'stopped' && phase === 'idle' && fullText)) && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mt-auto w-full max-w-2xl mx-auto pt-4"
+              className="mt-auto w-full max-w-5xl mx-auto pt-4"
             >
-              <LiveTranscriptPanel
-                chunks={liveChunks}
-                interimText={interimText}
-                latestChunkId={latestChunkId}
-                isProcessing={isProcessingChunk && status === 'recording'}
-                error={transcriptionError}
-                onRetry={retryTranscription}
-                paused={status === 'paused'}
-              />
+              <div className="grid gap-4 lg:grid-cols-2">
+                <LiveTranscriptPanel
+                  chunks={liveChunks}
+                  interimText={pendingChunkCount > 0 ? interimText : ''}
+                  latestChunkId={latestChunkId}
+                  isProcessing={isProcessingChunk && status === 'recording'}
+                  error={transcriptionError}
+                  onRetry={retryTranscription}
+                  paused={status === 'paused'}
+                />
+                <LiveNotesDraftPanel
+                  draft={liveNotes.draft}
+                  status={liveNotes.status}
+                  error={liveNotes.error}
+                />
+              </div>
             </motion.div>
           )}
         </div>

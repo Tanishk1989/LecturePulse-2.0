@@ -11,6 +11,7 @@ import { VideoPreviewPlayer } from '@/components/upload/VideoPreviewPlayer'
 import { useLectures } from '@/hooks/useLectures'
 import { formatDuration } from '@/lib/formatDuration'
 import { analyzeUploadFile, deriveLectureTitle, formatFileSize } from '@/lib/uploadUtils'
+import { HighlightedPageTitle, dashboardPageTitleClass } from '@/components/dashboard/ui/DashboardPageShell'
 import { cn } from '@/lib/utils'
 
 type UploadPhase = 'idle' | 'selected' | 'uploading' | 'success' | 'failed'
@@ -51,6 +52,16 @@ function FileTypeIcon({ kind }: { kind: 'audio' | 'video' | 'pdf' }) {
   return <FileAudio className="h-6 w-6 text-accent" strokeWidth={1.5} />
 }
 
+const SUBJECTS = [
+  'Computer Science',
+  'Mathematics',
+  'Physics',
+  'Biology',
+  'History',
+  'Economics',
+  'Literature',
+]
+
 export function UploadLecturePage() {
   const { uploadLecture } = useLectures()
   const [phase, setPhase] = useState<UploadPhase>('idle')
@@ -58,6 +69,8 @@ export function UploadLecturePage() {
   const [savedLecture, setSavedLecture] = useState<SavedLectureState | null>(null)
   const [progress, setProgress] = useState(0)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [subjectSelect, setSubjectSelect] = useState('')
+  const [customSubject, setCustomSubject] = useState('')
 
   const clearSelection = useCallback(() => {
     if (selected?.previewUrl.startsWith('blob:')) {
@@ -67,6 +80,8 @@ export function UploadLecturePage() {
     setSavedLecture(null)
     setProgress(0)
     setPhase('idle')
+    setSubjectSelect('')
+    setCustomSubject('')
   }, [selected])
 
   useEffect(() => {
@@ -107,6 +122,7 @@ export function UploadLecturePage() {
     setProgress(0)
 
     try {
+      const subjectVal = subjectSelect === 'other' ? customSubject.trim() : subjectSelect
       const saved = await uploadLecture({
         title: deriveLectureTitle(selected.file.name),
         duration: selected.duration,
@@ -115,6 +131,7 @@ export function UploadLecturePage() {
         source: 'upload',
         pageCount: selected.pageCount,
         onProgress: setProgress,
+        subject: subjectVal || undefined,
       })
 
       if (saved) {
@@ -129,7 +146,7 @@ export function UploadLecturePage() {
       setPhase('failed')
       setProgress(0)
     }
-  }, [uploadLecture, selected])
+  }, [uploadLecture, selected, subjectSelect, customSubject])
 
   const fileMeta = useMemo(() => {
     if (!selected) return null
@@ -155,11 +172,13 @@ export function UploadLecturePage() {
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-accent/25 bg-accent/[0.08] shadow-[0_0_40px_rgba(214,162,11,0.18)]"
+              className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-accent/25 bg-accent/[0.08] shadow-[0_0_40px_rgba(var(--color-accent-rgb),0.18)]"
             >
               <Upload className="h-7 w-7 text-accent" strokeWidth={1.75} />
             </motion.div>
-            <h1 className="font-heading text-4xl text-foreground md:text-5xl">Upload Lecture</h1>
+            <h1 className={dashboardPageTitleClass}>
+              <HighlightedPageTitle title="Upload Lecture" />
+            </h1>
             <p className="mt-3 text-sm text-muted md:text-base">
               Audio, Video, or PDF. Drag &amp; Drop supported.
             </p>
@@ -184,10 +203,9 @@ export function UploadLecturePage() {
                 </motion.div>
                 <p className="font-heading text-3xl text-foreground">Upload complete.</p>
                 <p className="mt-3 max-w-sm text-sm text-muted leading-relaxed">
-                  Your lecture is saved
                   {savedLecture && savedLecture.mediaKind !== 'pdf'
-                    ? ' and ready for transcription.'
-                    : ' and ready in your library.'}
+                    ? "Your lecture is saved. We're turning it into searchable notes and study material."
+                    : 'Your lecture is saved and ready in your library.'}
                 </p>
                 <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                   {savedLecture && savedLecture.mediaKind !== 'pdf' && (
@@ -195,10 +213,10 @@ export function UploadLecturePage() {
                       to={`/transcript/${savedLecture.id}`}
                       className={cn(
                         'inline-flex items-center justify-center rounded-full bg-accent px-6 py-3 text-sm font-medium text-background',
-                        'shadow-[0_0_24px_rgba(214,162,11,0.2)] hover:bg-accent-soft hover:-translate-y-0.5 transition-all duration-300 cursor-pointer',
+                        'shadow-[0_0_24px_rgba(var(--color-accent-rgb),0.2)] hover:bg-accent-soft hover:-translate-y-0.5 transition-all duration-300 cursor-pointer',
                       )}
                     >
-                      Transcribe Now
+                      View Progress
                     </Link>
                   )}
                   <Link
@@ -206,7 +224,7 @@ export function UploadLecturePage() {
                     className={cn(
                       'inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-medium transition-all duration-300 cursor-pointer hover:-translate-y-0.5',
                       savedLecture?.mediaKind === 'pdf'
-                        ? 'bg-accent text-background shadow-[0_0_24px_rgba(214,162,11,0.2)] hover:bg-accent-soft'
+                        ? 'bg-accent text-background shadow-[0_0_24px_rgba(var(--color-accent-rgb),0.2)] hover:bg-accent-soft'
                         : 'border border-white/[0.12] bg-white/[0.03] text-foreground',
                     )}
                   >
@@ -297,6 +315,40 @@ export function UploadLecturePage() {
                   </div>
                 )}
 
+                {phase === 'selected' && (
+                  <div className="mb-6 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4">
+                    <label
+                      htmlFor="subject-select"
+                      className="block text-xs font-semibold text-muted mb-2 uppercase tracking-wider"
+                    >
+                      Lecture Subject (Optional)
+                    </label>
+                    <div className="flex flex-col gap-3">
+                      <select
+                        id="subject-select"
+                        value={subjectSelect}
+                        onChange={(e) => setSubjectSelect(e.target.value)}
+                        className="w-full rounded-xl border border-white/[0.08] bg-[#0E0E0E] px-3 py-2 text-sm text-foreground outline-none focus:border-accent/35"
+                      >
+                        <option value="" className="bg-[#0D0D0D]">Select a subject...</option>
+                        {SUBJECTS.map((sub) => (
+                          <option key={sub} value={sub} className="bg-[#0D0D0D]">{sub}</option>
+                        ))}
+                        <option value="other" className="bg-[#0D0D0D]">Other (Type Custom...)</option>
+                      </select>
+                      {subjectSelect === 'other' && (
+                        <input
+                          type="text"
+                          value={customSubject}
+                          onChange={(e) => setCustomSubject(e.target.value)}
+                          placeholder="Type custom subject (e.g. Chemistry, Philosophy)"
+                          className="w-full rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-foreground outline-none focus:border-accent/35"
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {(phase === 'uploading' || progress > 0) && (
                   <UploadProgressBar progress={progress} className="mb-6" />
                 )}
@@ -326,7 +378,7 @@ export function UploadLecturePage() {
                       onClick={() => void handleUpload()}
                       className={cn(
                         'inline-flex items-center justify-center gap-2 rounded-full bg-accent px-6 py-3 text-sm font-medium text-background',
-                        'shadow-[0_0_24px_rgba(214,162,11,0.18)] transition-all duration-300 cursor-pointer',
+                        'shadow-[0_0_24px_rgba(var(--color-accent-rgb),0.18)] transition-all duration-300 cursor-pointer',
                         'hover:bg-accent-soft hover:-translate-y-0.5',
                       )}
                     >
@@ -340,7 +392,7 @@ export function UploadLecturePage() {
                       disabled={phase === 'uploading' || isAnalyzing}
                       className={cn(
                         'inline-flex items-center justify-center rounded-full bg-accent px-6 py-3 text-sm font-medium text-background',
-                        'shadow-[0_0_24px_rgba(214,162,11,0.18)] transition-all duration-300 cursor-pointer',
+                        'shadow-[0_0_24px_rgba(var(--color-accent-rgb),0.18)] transition-all duration-300 cursor-pointer',
                         'hover:bg-accent-soft hover:-translate-y-0.5 hover:scale-[1.02]',
                         'disabled:opacity-50 disabled:cursor-not-allowed',
                       )}

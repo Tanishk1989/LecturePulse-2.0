@@ -8,7 +8,7 @@ interface DashboardCardProps {
 }
 
 const glowStyles = {
-  gold: 'shadow-[0_0_60px_rgba(214,162,11,0.08)] border-accent/15',
+  gold: 'shadow-[0_0_60px_rgba(var(--color-accent-rgb),0.08)] border-accent/15',
   red: 'shadow-[0_0_60px_rgba(239,68,68,0.08)] border-red/15',
   emerald: 'shadow-[0_0_60px_rgba(16,185,129,0.08)] border-emerald/15',
   none: '',
@@ -23,7 +23,7 @@ export function DashboardCard({
   return (
     <div
       className={cn(
-        'rounded-2xl border border-white/[0.08] bg-card p-7 md:p-8',
+        'rounded-2xl border border-border bg-card p-7 md:p-8 shadow-premium',
         glowStyles[glow],
         hover && 'glow-hover cursor-pointer',
         className,

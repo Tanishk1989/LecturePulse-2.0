@@ -3,9 +3,16 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
+import { isXlUp } from '@/lib/breakpoints'
+
+type TutorPanelFocusHandler = (query?: string) => void
+
+/** Survives DashboardLayout remounts during SPA navigation; resets on full page reload. */
+let tutorPanelExpandedSession = false
 
 interface DashboardContextValue {
   sidebarOpen: boolean
@@ -19,6 +26,13 @@ interface DashboardContextValue {
   pulseExpanded: boolean
   setPulseExpanded: (expanded: boolean) => void
   togglePulse: () => void
+  shortcutsOpen: boolean
+  openShortcuts: () => void
+  closeShortcuts: () => void
+  registerTutorPanelFocus: (focus: TutorPanelFocusHandler | null) => void
+  tutorPanelExpanded: boolean
+  expandTutorPanel: () => void
+  collapseTutorPanel: () => void
 }
 
 const DashboardContext = createContext<DashboardContextValue | null>(null)
@@ -28,15 +42,43 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const [tutorOpen, setTutorOpen] = useState(false)
   const [tutorQuery, setTutorQuery] = useState('')
   const [pulseExpanded, setPulseExpanded] = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [tutorPanelExpanded, setTutorPanelExpanded] = useState(tutorPanelExpandedSession)
+  const tutorPanelFocusRef = useRef<TutorPanelFocusHandler | null>(null)
 
   const toggleSidebar = useCallback(() => {
     setSidebarOpen((prev) => !prev)
   }, [])
 
+  const registerTutorPanelFocus = useCallback((focus: TutorPanelFocusHandler | null) => {
+    tutorPanelFocusRef.current = focus
+  }, [])
+
+  const expandTutorPanel = useCallback(() => {
+    tutorPanelExpandedSession = true
+    setTutorPanelExpanded(true)
+  }, [])
+
+  const collapseTutorPanel = useCallback(() => {
+    tutorPanelExpandedSession = false
+    setTutorPanelExpanded(false)
+  }, [])
+
   const openTutor = useCallback((query = '') => {
     setTutorQuery(query)
-    setTutorOpen(true)
     setPulseExpanded(false)
+
+    if (isXlUp()) {
+      setTutorOpen(false)
+      tutorPanelExpandedSession = true
+      setTutorPanelExpanded(true)
+      window.setTimeout(() => {
+        tutorPanelFocusRef.current?.(query)
+      }, 50)
+      return
+    }
+
+    setTutorOpen(true)
   }, [])
 
   const closeTutor = useCallback(() => {
@@ -45,6 +87,14 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 
   const togglePulse = useCallback(() => {
     setPulseExpanded((prev) => !prev)
+  }, [])
+
+  const openShortcuts = useCallback(() => {
+    setShortcutsOpen(true)
+  }, [])
+
+  const closeShortcuts = useCallback(() => {
+    setShortcutsOpen(false)
   }, [])
 
   const value = useMemo(
@@ -60,16 +110,30 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       pulseExpanded,
       setPulseExpanded,
       togglePulse,
+      shortcutsOpen,
+      openShortcuts,
+      closeShortcuts,
+      registerTutorPanelFocus,
+      tutorPanelExpanded,
+      expandTutorPanel,
+      collapseTutorPanel,
     }),
     [
       sidebarOpen,
       tutorOpen,
       tutorQuery,
       pulseExpanded,
+      shortcutsOpen,
+      tutorPanelExpanded,
       toggleSidebar,
       openTutor,
       closeTutor,
       togglePulse,
+      openShortcuts,
+      closeShortcuts,
+      registerTutorPanelFocus,
+      expandTutorPanel,
+      collapseTutorPanel,
     ],
   )
 

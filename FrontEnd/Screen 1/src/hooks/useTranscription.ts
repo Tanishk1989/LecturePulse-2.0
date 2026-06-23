@@ -132,7 +132,7 @@ export function useTranscription(
         setTranscriptionProgress(null)
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to load transcript.'
+      const message = err instanceof Error ? err.message : 'Failed to load lecture text.'
       setError(message)
       setPhase('failed')
       toast.error(message)
@@ -171,14 +171,14 @@ export function useTranscription(
         throw new Error(AI_UNAVAILABLE_MESSAGE)
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Transcription failed.'
+      const message = err instanceof Error ? err.message : 'Processing failed.'
       setError(message)
       setPhase('failed')
       setInterimText('')
       setTranscriptionProgress(null)
       setIsBackgroundProcessing(false)
       onLectureStatusChange?.()
-      toast.error('Transcription failed. Try again.')
+      toast.error('Processing failed. Try again.')
     } finally {
       transcribingRef.current = false
     }
@@ -205,7 +205,7 @@ export function useTranscription(
         forceRetranscribe: true,
       })
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Transcription failed.'
+      const message = err instanceof Error ? err.message : 'Processing failed.'
       setError(message)
       setPhase('failed')
       setIsBackgroundProcessing(false)

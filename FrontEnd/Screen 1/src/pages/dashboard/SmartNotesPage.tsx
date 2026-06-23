@@ -86,7 +86,7 @@ export function SmartNotesPage() {
 
       {!loading && lectures.length > 0 && (
         <FadeUp delay={0.05}>
-          <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <StatPill label="Total notes" value={stats.total} icon={FileText} tone="accent" />
             <StatPill label="Ready" value={stats.ready} icon={CheckCircle2} tone="emerald" />
             <StatPill label="In progress" value={stats.pending} icon={Clock} tone="sky" />

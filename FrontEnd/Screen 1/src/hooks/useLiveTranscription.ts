@@ -1,12 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  detectLanguageFromText,
-  isSpeechRecognitionSupported,
-  SpeechRecognitionSession,
-} from '@/lib/webSpeechRecognition'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { detectLanguageFromText } from '@/lib/webSpeechRecognition'
 import type { DetectedLanguageLabel } from '@/lib/webSpeechRecognition'
 import { useMediaRecorder } from '@/hooks/useMediaRecorder'
 import { createTranscript, updateTranscript } from '@/services/transcriptionService'
+import { transcribeLiveAudioChunk } from '@/services/liveTranscriptionService'
 import type { TranscriptSegment } from '@/types/transcript'
 import { formatDuration } from '@/lib/formatDuration'
 
@@ -18,54 +15,61 @@ export interface LiveTranscriptChunk {
   isInterim?: boolean
 }
 
+const LIVE_CHUNK_INTERVAL_MS = 7000
+const STOP_FLUSH_DELAY_MS = 450
+
 function dedupeAppend(existing: string, incoming: string): string {
   const trimmed = incoming.trim()
   if (!trimmed) return existing
   if (!existing) return trimmed
 
-  const existingTail = existing.slice(-80).toLowerCase()
-  const incomingHead = trimmed.slice(0, 80).toLowerCase()
+  const existingTail = existing.slice(-120).toLowerCase()
+  const incomingHead = trimmed.slice(0, 120).toLowerCase()
 
-  for (let overlap = Math.min(60, existingTail.length, incomingHead.length); overlap > 10; overlap -= 1) {
+  for (let overlap = Math.min(80, existingTail.length, incomingHead.length); overlap > 12; overlap -= 1) {
     if (existingTail.endsWith(incomingHead.slice(0, overlap))) {
-      return `${existing}${trimmed.slice(overlap).trimStart()}`
+      return `${existing}${trimmed.slice(overlap).trimStart()}`.trim()
     }
   }
 
   return `${existing} ${trimmed}`.trim()
 }
 
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
+}
+
 export type { DetectedLanguageLabel } from '@/lib/webSpeechRecognition'
 
-export function useLiveTranscription() {
+export function useLiveTranscription(userId?: string | null) {
   const [liveChunks, setLiveChunks] = useState<LiveTranscriptChunk[]>([])
   const [interimText, setInterimText] = useState('')
   const [fullText, setFullText] = useState('')
   const [segments, setSegments] = useState<TranscriptSegment[]>([])
   const [detectedLanguage, setDetectedLanguage] = useState<DetectedLanguageLabel>('Detecting…')
   const [transcriptionError, setTranscriptionError] = useState<string | null>(null)
-  const [isListening, setIsListening] = useState(false)
+  const [isProcessingChunk, setIsProcessingChunk] = useState(false)
+  const [pendingChunkCount, setPendingChunkCount] = useState(0)
   const [latestChunkId, setLatestChunkId] = useState<string | null>(null)
 
-  const sessionRef = useRef<SpeechRecognitionSession | null>(null)
   const fullTextRef = useRef('')
   const segmentsRef = useRef<TranscriptSegment[]>([])
   const chunkIndexRef = useRef(0)
   const elapsedRef = useRef(0)
-
-  const recorder = useMediaRecorder()
+  const queueRef = useRef<Promise<void>>(Promise.resolve())
+  const sessionIdRef = useRef(crypto.randomUUID())
+  const userIdRef = useRef(userId ?? null)
 
   useEffect(() => {
-    elapsedRef.current = recorder.elapsedSeconds
-  }, [recorder.elapsedSeconds])
+    userIdRef.current = userId ?? null
+  }, [userId])
 
-  const appendFinalText = useCallback((text: string) => {
+  const appendFinalText = useCallback((text: string, timestamp: number, duration?: number | null) => {
     const trimmed = text.trim()
     if (!trimmed) return
 
     const chunkId = `chunk-${chunkIndexRef.current}`
     chunkIndexRef.current += 1
-    const timestamp = elapsedRef.current
 
     const nextText = dedupeAppend(fullTextRef.current, trimmed)
     fullTextRef.current = nextText
@@ -76,14 +80,14 @@ export function useLiveTranscription() {
     const segment: TranscriptSegment = {
       id: segmentsRef.current.length,
       start: timestamp,
-      end: timestamp + 2,
+      end: timestamp + Math.max(1, duration ?? LIVE_CHUNK_INTERVAL_MS / 1000),
       text: trimmed,
     }
     segmentsRef.current = [...segmentsRef.current, segment]
     setSegments(segmentsRef.current)
 
     setLiveChunks((prev) => [
-      ...prev.filter((chunk) => !chunk.isInterim),
+      ...prev,
       {
         id: chunkId,
         timestamp,
@@ -95,87 +99,106 @@ export function useLiveTranscription() {
     setLatestChunkId(chunkId)
   }, [])
 
-  const startRecognition = useCallback(() => {
-    if (!isSpeechRecognitionSupported()) return
+  const transcribeChunk = useCallback(
+    async (blob: Blob, recorderChunkIndex: number) => {
+      const currentUserId = userIdRef.current
+      if (!currentUserId || blob.size === 0) return
 
-    sessionRef.current?.abort()
+      setPendingChunkCount((count) => count + 1)
+      setIsProcessingChunk(true)
+      setTranscriptionError(null)
+      setInterimText('Sending audio to Whisper...')
 
-    const session = new SpeechRecognitionSession({
-      language: 'auto',
-      onInterim: (text) => {
-        setInterimText(text)
-        setLiveChunks((prev) => {
-          const withoutInterim = prev.filter((chunk) => !chunk.isInterim)
-          if (!text.trim()) return withoutInterim
-          return [
-            ...withoutInterim,
-            {
-              id: 'interim',
-              timestamp: elapsedRef.current,
-              timestampLabel: formatDuration(elapsedRef.current),
-              text,
-              isInterim: true,
-            },
-          ]
+      try {
+        const timestamp = elapsedRef.current
+        const result = await transcribeLiveAudioChunk({
+          userId: currentUserId,
+          sessionId: sessionIdRef.current,
+          chunkIndex: recorderChunkIndex,
+          blob,
+          language: undefined,
         })
-      },
-      onFinal: (text) => appendFinalText(text),
-      onError: (message) => setTranscriptionError(message),
-      onStart: () => setIsListening(true),
-      onEnd: () => setIsListening(false),
-    })
 
-    sessionRef.current = session
-    session.start()
-  }, [appendFinalText])
+        if (result?.text) {
+          appendFinalText(result.text, timestamp, result.duration)
+        }
+      } catch (error) {
+        setTranscriptionError(
+          error instanceof Error ? error.message : 'Live processing failed.',
+        )
+      } finally {
+        setPendingChunkCount((count) => {
+          const next = Math.max(0, count - 1)
+          if (next === 0) {
+            setIsProcessingChunk(false)
+            setInterimText('')
+          }
+          return next
+        })
+      }
+    },
+    [appendFinalText],
+  )
 
-  const stopRecognition = useCallback(() => {
-    sessionRef.current?.stop()
-    sessionRef.current = null
-    setIsListening(false)
-    setInterimText('')
-    setLiveChunks((prev) => prev.filter((chunk) => !chunk.isInterim))
-  }, [])
+  const enqueueChunk = useCallback(
+    (blob: Blob, recorderChunkIndex: number) => {
+      queueRef.current = queueRef.current.then(() => transcribeChunk(blob, recorderChunkIndex))
+    },
+    [transcribeChunk],
+  )
+
+  const recorder = useMediaRecorder({
+    chunkIntervalMs: LIVE_CHUNK_INTERVAL_MS,
+    onChunk: enqueueChunk,
+  })
+
+  useEffect(() => {
+    elapsedRef.current = recorder.elapsedSeconds
+  }, [recorder.elapsedSeconds])
 
   const resetTranscription = useCallback(() => {
-    stopRecognition()
+    sessionIdRef.current = crypto.randomUUID()
+    queueRef.current = Promise.resolve()
     setLiveChunks([])
     setInterimText('')
     setFullText('')
     setSegments([])
     setDetectedLanguage('Detecting…')
     setTranscriptionError(null)
+    setIsProcessingChunk(false)
+    setPendingChunkCount(0)
     setLatestChunkId(null)
     fullTextRef.current = ''
     segmentsRef.current = []
     chunkIndexRef.current = 0
-  }, [stopRecognition])
+  }, [])
 
   const startLiveRecording = useCallback(async () => {
     resetTranscription()
+    if (!userIdRef.current) {
+      setTranscriptionError('Sign in to use live lecture capture.')
+      return false
+    }
     const granted = await recorder.requestPermission()
     if (!granted) return false
     recorder.startRecording()
-    startRecognition()
     return true
-  }, [recorder, resetTranscription, startRecognition])
+  }, [recorder, resetTranscription])
 
   const pauseLiveRecording = useCallback(() => {
     recorder.pauseRecording()
-    sessionRef.current?.pause()
     setInterimText('')
-    setLiveChunks((prev) => prev.filter((chunk) => !chunk.isInterim))
   }, [recorder])
 
   const resumeLiveRecording = useCallback(() => {
     recorder.resumeRecording()
-    sessionRef.current?.resume()
   }, [recorder])
 
   const stopLiveRecording = useCallback(async () => {
     recorder.stopRecording()
-    stopRecognition()
-  }, [recorder, stopRecognition])
+    await wait(STOP_FLUSH_DELAY_MS)
+    await queueRef.current
+  }, [recorder])
 
   const resetAll = useCallback(() => {
     resetTranscription()
@@ -184,19 +207,16 @@ export function useLiveTranscription() {
 
   const retryTranscription = useCallback(() => {
     setTranscriptionError(null)
-    if (recorder.status === 'recording') {
-      startRecognition()
-    }
-  }, [recorder.status, startRecognition])
+  }, [])
 
   const saveTranscript = useCallback(
-    async (userId: string, lectureId: string, durationSeconds: number) => {
+    async (saveUserId: string, lectureId: string, durationSeconds: number) => {
       const text = fullTextRef.current.trim()
       if (!text) return null
 
       return createTranscript({
         lectureId,
-        userId,
+        userId: saveUserId,
         text,
         language: detectedLanguage === 'Detecting…' ? null : detectedLanguage,
         durationSeconds,
@@ -208,11 +228,11 @@ export function useLiveTranscription() {
   )
 
   const updateSavedTranscript = useCallback(
-    async (transcriptId: string, userId: string, durationSeconds: number) => {
+    async (transcriptId: string, saveUserId: string, durationSeconds: number) => {
       const text = fullTextRef.current.trim()
       if (!text) return null
 
-      return updateTranscript(transcriptId, userId, {
+      return updateTranscript(transcriptId, saveUserId, {
         text,
         language: detectedLanguage === 'Detecting…' ? null : detectedLanguage,
         durationSeconds,
@@ -224,26 +244,48 @@ export function useLiveTranscription() {
     [detectedLanguage],
   )
 
-  return {
-    ...recorder,
-    liveChunks,
-    interimText,
-    fullText,
-    segments,
-    detectedLanguage,
-    transcriptionError,
-    isProcessingChunk: isListening,
-    latestChunkId,
-    isSpeechRecognitionSupported: isSpeechRecognitionSupported(),
-    /** @deprecated Use `isSpeechRecognitionSupported` */
-    isWhisperConfigured: isSpeechRecognitionSupported(),
-    startLiveRecording,
-    pauseLiveRecording,
-    resumeLiveRecording,
-    stopLiveRecording,
-    resetAll,
-    retryTranscription,
-    saveTranscript,
-    updateSavedTranscript,
-  }
+  return useMemo(
+    () => ({
+      ...recorder,
+      liveChunks,
+      interimText,
+      fullText,
+      segments,
+      detectedLanguage,
+      transcriptionError,
+      isProcessingChunk,
+      pendingChunkCount,
+      latestChunkId,
+      isSpeechRecognitionSupported: true,
+      isWhisperConfigured: true,
+      startLiveRecording,
+      pauseLiveRecording,
+      resumeLiveRecording,
+      stopLiveRecording,
+      resetAll,
+      retryTranscription,
+      saveTranscript,
+      updateSavedTranscript,
+    }),
+    [
+      recorder,
+      liveChunks,
+      interimText,
+      fullText,
+      segments,
+      detectedLanguage,
+      transcriptionError,
+      isProcessingChunk,
+      pendingChunkCount,
+      latestChunkId,
+      startLiveRecording,
+      pauseLiveRecording,
+      resumeLiveRecording,
+      stopLiveRecording,
+      resetAll,
+      retryTranscription,
+      saveTranscript,
+      updateSavedTranscript,
+    ],
+  )
 }

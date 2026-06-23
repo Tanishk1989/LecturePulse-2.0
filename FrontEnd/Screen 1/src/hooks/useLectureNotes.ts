@@ -144,7 +144,7 @@ export function useLectureNotes(
       toast.error(
         isPdf
           ? 'Could not extract text from this PDF.'
-          : 'Transcript not ready. Complete transcription first.',
+          : 'Lecture not ready yet. Processing will finish automatically.',
       )
       return
     }

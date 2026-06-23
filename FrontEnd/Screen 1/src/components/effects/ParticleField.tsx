@@ -63,7 +63,7 @@ export function ParticleField({ className, count = 40, yellowRatio = 0.25 }: Par
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
         ctx.fillStyle =
           p.color === 'yellow'
-            ? `rgba(214,162,11, ${p.opacity})`
+            ? `rgba(var(--color-accent-rgb), ${p.opacity})`
             : `rgba(239, 68, 68, ${p.opacity})`
         ctx.fill()
       })

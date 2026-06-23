@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 export type NotesHubStatus =
   | 'needs_pdf_text'
   | 'needs_transcript'
+  | 'processing_lecture'
   | 'ready'
   | 'generating'
   | 'failed'
@@ -26,7 +27,10 @@ function resolveHubStatus(
   hasTranscript: boolean,
 ): NotesHubStatus {
   if (getLectureMediaKind(lecture) === 'pdf' && !hasTranscript) return 'needs_pdf_text'
-  if (!hasTranscript) return 'needs_transcript'
+  if (!hasTranscript) {
+    if (lecture.status === 'processing') return 'processing_lecture'
+    return 'needs_transcript'
+  }
   if (!notes) return 'no_notes'
   if (notes.status === 'completed') return 'ready'
   if (notes.status === 'failed') return 'failed'
@@ -66,10 +70,17 @@ const statusConfig: Record<
     href: (id) => `/notes/${id}`,
   },
   needs_transcript: {
-    label: 'Needs transcript',
+    label: 'Preparing',
     container: 'border-white/[0.1] bg-white/[0.04] text-muted',
     dot: 'bg-muted',
-    action: 'Transcribe',
+    action: 'View Progress',
+    href: (id) => `/transcript/${id}`,
+  },
+  processing_lecture: {
+    label: 'Processing',
+    container: 'border-sky-400/20 bg-sky-400/[0.08] text-sky-400',
+    dot: 'bg-sky-400 animate-pulse',
+    action: 'View Progress',
     href: (id) => `/transcript/${id}`,
   },
   needs_pdf_text: {
@@ -84,8 +95,16 @@ const statusConfig: Record<
 function summaryPreview(notes: LectureNotes | null, status: NotesHubStatus): string | null {
   if (status !== 'ready' || !notes?.content.summary) return null
   const text = notes.content.summary.trim()
-  if (text.length <= 120) return text
-  return `${text.slice(0, 120).trim()}…`
+  
+  // Strip markdown tags, headings, bold styling and list indicators
+  const cleanedText = text
+    .replace(/###\s+\w+(\s+\w+)?/g, '') // remove headings like "### Summary", "### Key Topics"
+    .replace(/\*\*|[-*\[\]]/g, '') // remove markdown bold and bullet markers
+    .replace(/\s+/g, ' ') // normalize spaces
+    .trim()
+
+  if (cleanedText.length <= 120) return cleanedText
+  return `${cleanedText.slice(0, 120).trim()}…`
 }
 
 export function NotesHubCard({ lecture, notes, hasTranscript }: NotesHubCardProps) {
@@ -99,7 +118,7 @@ export function NotesHubCard({ lecture, notes, hasTranscript }: NotesHubCardProp
       className={cn(
         'group relative overflow-hidden rounded-2xl border border-white/[0.08] bg-card/80 backdrop-blur-xl',
         'transition-all duration-300 hover:-translate-y-0.5 hover:border-accent/20',
-        'hover:shadow-[0_12px_40px_rgba(0,0,0,0.25),0_0_24px_rgba(214,162,11,0.06)]',
+        'hover:shadow-[0_12px_40px_rgba(0,0,0,0.25),0_0_24px_rgba(var(--color-accent-rgb),0.06)]',
       )}
     >
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-accent/[0.03] via-transparent to-ambient/[0.02]" />
@@ -121,7 +140,13 @@ export function NotesHubCard({ lecture, notes, hasTranscript }: NotesHubCardProp
             </span>
           </div>
 
-          <h3 className="truncate text-base font-semibold text-foreground">{lecture.title}</h3>
+          <h3 className="truncate text-base font-semibold text-foreground">
+            {lecture.status === 'processing' || lecture.status === 'uploaded' ? (
+              <span className="text-muted/60 italic animate-pulse">Generating title...</span>
+            ) : (
+              lecture.title
+            )}
+          </h3>
 
           <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
             <span>{formatRelativeDate(lecture.createdAt)}</span>
@@ -137,9 +162,9 @@ export function NotesHubCard({ lecture, notes, hasTranscript }: NotesHubCardProp
             <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-muted">{preview}</p>
           )}
 
-          {status === 'needs_transcript' && (
+          {(status === 'needs_transcript' || status === 'processing_lecture') && (
             <p className="mt-3 text-sm text-muted">
-              Transcribe this lecture to generate smart notes.
+              Smart notes will appear once processing finishes.
             </p>
           )}
 
@@ -156,11 +181,13 @@ export function NotesHubCard({ lecture, notes, hasTranscript }: NotesHubCardProp
             className={cn(
               'inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium transition-all duration-300 cursor-pointer',
               status === 'ready' || status === 'no_notes'
-                ? 'bg-accent text-background shadow-[0_0_20px_rgba(214,162,11,0.15)] hover:bg-accent-soft'
+                ? 'bg-accent text-background shadow-[0_0_20px_rgba(var(--color-accent-rgb),0.15)] hover:bg-accent-soft'
                 : 'border border-white/[0.12] bg-white/[0.03] text-foreground hover:border-accent/25',
             )}
           >
-            {status === 'generating' && <Loader2 className="h-4 w-4 animate-spin" />}
+            {(status === 'generating' || status === 'processing_lecture') && (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            )}
             {status === 'needs_transcript' && <ScrollText className="h-4 w-4" />}
             {(status === 'ready' ||
               status === 'no_notes' ||

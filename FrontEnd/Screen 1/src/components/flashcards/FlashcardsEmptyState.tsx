@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Brain, Layers, Mic2, Upload } from 'lucide-react'
+import { Brain, Layers, Radio, Upload } from 'lucide-react'
 import { FadeUp } from '@/components/effects/FadeUp'
 import { DashboardCard } from '@/components/dashboard/ui/DashboardCard'
 import { cn } from '@/lib/utils'
@@ -27,7 +27,7 @@ export function FlashcardsEmptyState({
         </div>
         <h2 className="font-heading text-2xl text-foreground">No flashcards yet</h2>
         <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-muted">
-          Record or upload lectures, then generate flashcards from transcripts. Saved cards use
+          Record or upload lectures, then generate flashcards automatically. Saved cards use
           spaced repetition so you review them at the right time.
         </p>
 
@@ -38,7 +38,7 @@ export function FlashcardsEmptyState({
             disabled={batchGenerating}
             className={cn(
               'mx-auto mt-6 inline-flex items-center gap-2 rounded-full bg-accent px-6 py-3 text-sm font-medium text-background',
-              'shadow-[0_0_24px_rgba(214,162,11,0.2)] hover:bg-accent-soft hover:-translate-y-0.5 transition-all duration-300',
+              'shadow-[0_0_24px_rgba(var(--color-accent-rgb),0.2)] hover:bg-accent-soft hover:-translate-y-0.5 transition-all duration-300',
               'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0',
             )}
           >
@@ -55,18 +55,18 @@ export function FlashcardsEmptyState({
           <Link
             to="/dashboard/record"
             className={cn(
-              'inline-flex items-center gap-2 rounded-full border border-white/[0.12] px-6 py-3 text-sm font-medium text-foreground',
-              'bg-white/[0.03] hover:border-accent/25 hover:bg-accent/[0.06] transition-all duration-300',
+              'inline-flex items-center gap-2 rounded-full bg-red px-6 py-3 text-sm font-medium text-white',
+              'shadow-[0_0_24px_rgba(239,68,68,0.2)] hover:bg-red/90 transition-all duration-300',
             )}
           >
-            <Mic2 className="h-4 w-4" />
+            <Radio className="h-4 w-4" />
             Record Live
           </Link>
           <Link
             to="/dashboard/upload"
             className={cn(
-              'inline-flex items-center gap-2 rounded-full border border-white/[0.12] px-6 py-3 text-sm font-medium text-foreground',
-              'bg-white/[0.03] hover:border-accent/25 hover:bg-accent/[0.06] transition-all duration-300',
+              'inline-flex items-center gap-2 rounded-full border border-blue-500/25 px-6 py-3 text-sm font-medium text-blue-600 dark:text-blue-400',
+              'bg-blue-500/[0.02] hover:border-blue-500/50 hover:bg-blue-500/[0.08] transition-all duration-300',
             )}
           >
             <Upload className="h-4 w-4" />

@@ -52,7 +52,7 @@ export function TranscriptSidebar({
   const controlClass = cn(
     'flex h-10 w-10 items-center justify-center rounded-full border border-white/[0.08]',
     'bg-white/[0.03] text-muted transition-all duration-200 cursor-pointer',
-    'hover:-translate-y-0.5 hover:border-accent/25 hover:text-accent hover:shadow-[0_0_16px_rgba(214,162,11,0.12)]',
+    'hover:-translate-y-0.5 hover:border-accent/25 hover:text-accent hover:shadow-[0_0_16px_rgba(var(--color-accent-rgb),0.12)]',
   )
 
   return (
@@ -101,7 +101,7 @@ export function TranscriptSidebar({
           className={cn(
             controlClass,
             'h-11 w-11 border-accent/30 bg-accent/[0.1] text-accent',
-            'hover:shadow-[0_0_24px_rgba(214,162,11,0.2)]',
+            'hover:shadow-[0_0_24px_rgba(var(--color-accent-rgb),0.2)]',
           )}
         >
           <Play className="h-5 w-5 ml-0.5" />
@@ -128,7 +128,7 @@ export function TranscriptSidebar({
               className="absolute right-0 top-full z-10 mt-2 w-44 rounded-2xl border border-white/[0.08] bg-[#0D0D0D] p-1.5 shadow-xl"
             >
               <MenuItem icon={Download} label="Download audio" disabled />
-              <MenuItem icon={Share2} label="Share transcript" disabled />
+              <MenuItem icon={Share2} label="Share lecture" disabled />
               <MenuItem icon={Trash2} label="Delete lecture" disabled />
             </motion.div>
           )}
@@ -148,7 +148,7 @@ export function TranscriptSidebar({
           className={cn(
             'mt-5 inline-flex items-center justify-center gap-2 rounded-full border border-accent/25',
             'bg-accent/[0.08] px-4 py-2.5 text-sm font-medium text-accent transition-all cursor-pointer',
-            'hover:bg-accent/[0.12] hover:shadow-[0_0_20px_rgba(214,162,11,0.12)]',
+            'hover:bg-accent/[0.12] hover:shadow-[0_0_20px_rgba(var(--color-accent-rgb),0.12)]',
           )}
         >
           <NotebookPen className="h-4 w-4" />

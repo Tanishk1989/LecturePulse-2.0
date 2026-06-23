@@ -125,7 +125,7 @@ export function AIChatSection() {
                     className="flex-1 bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted outline-none"
                     readOnly
                   />
-                  <button className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-background shadow-[0_0_15px_rgba(214,162,11,0.25)]">
+                  <button className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-background shadow-[0_0_15px_rgba(var(--color-accent-rgb),0.25)]">
                     <Send className="h-4 w-4" />
                   </button>
                 </div>

@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 const faqs = [
   {
     q: 'How does LecturePulse capture lectures?',
-    a: 'Via the Web Audio API in the browser — no native apps required. Audio streams over WebSockets to our backend for real-time transcription and processing.',
+    a: 'Via the Web Audio API in the browser — no native apps required. Audio streams over WebSockets to our backend for real-time processing.',
   },
   {
     q: 'Is the project open source?',
@@ -43,7 +43,7 @@ export function FAQSection() {
             <div
               className={cn(
                 'glass-card rounded-xl overflow-hidden cursor-pointer transition-all duration-300 ease-out',
-                open === i && 'border-accent/15 shadow-[0_0_24px_rgba(214,162,11,0.06)]',
+                open === i && 'border-accent/15 shadow-[0_0_24px_rgba(var(--color-accent-rgb),0.06)]',
               )}
             >
               <button

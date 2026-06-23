@@ -42,13 +42,13 @@ export function AuthBrandPanel() {
       >
         <Link to="/" className="inline-flex items-center gap-3.5 group cursor-pointer">
           <div
-            className="flex h-14 w-14 items-center justify-center rounded-2xl border border-accent/25 bg-accent/[0.06] transition-all duration-300 ease-out group-hover:scale-[1.03] group-hover:border-accent/40 group-hover:shadow-[0_0_32px_rgba(214,162,11,0.18)]"
-            style={{ boxShadow: '0 0 20px rgba(214,162,11,0.12)' }}
+            className="flex h-14 w-14 items-center justify-center rounded-2xl border border-accent/25 bg-accent/[0.06] transition-all duration-300 ease-out group-hover:scale-[1.03] group-hover:border-accent/40 group-hover:shadow-[0_0_32px_rgba(var(--color-accent-rgb),0.18)]"
+            style={{ boxShadow: '0 0 20px rgba(var(--color-accent-rgb),0.12)' }}
           >
             <PulseIcon size={32} />
           </div>
           <span className="font-heading text-2xl">
-            <span className="text-[#FAFAFA]">Lecture</span>
+            <span className="text-foreground">Lecture</span>
             <span className="text-accent">Pulse</span>
           </span>
         </Link>

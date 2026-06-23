@@ -66,7 +66,7 @@ export function SocialAuthButton({
         'transition-all duration-300 ease-out disabled:cursor-not-allowed disabled:opacity-60',
         isGoogle
           ? 'bg-white text-[#050505] hover:shadow-[0_8px_32px_rgba(255,255,255,0.12)]'
-          : 'border border-white/[0.1] bg-[#141414] text-foreground hover:border-accent/40 hover:shadow-[0_0_24px_rgba(214,162,11,0.15)]',
+          : 'border border-white/[0.1] bg-[#141414] text-foreground hover:border-accent/40 hover:shadow-[0_0_24px_rgba(var(--color-accent-rgb),0.15)]',
       )}
       whileHover={prefersReducedMotion || isDisabled ? undefined : { scale: 1.02 }}
       whileTap={prefersReducedMotion || isDisabled ? undefined : { scale: 0.98 }}

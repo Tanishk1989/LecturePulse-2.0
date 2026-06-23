@@ -1,4 +1,4 @@
-import { isSupabaseConfigured, supabase } from '@/lib/supabase'
+import { apiFetch } from '@/lib/api'
 
 export interface ProcessingEnqueueResult {
   status: 'processing' | 'queued'
@@ -14,41 +14,21 @@ export interface LectureProcessingStatus {
 
 const POLL_INTERVAL_MS = 3000
 
-function getInvokeError(data: unknown, error: { message?: string } | null): string {
-  if (data && typeof data === 'object' && 'error' in data) {
-    const message = (data as { error?: string }).error
-    if (message) return message
-  }
-  return error?.message || 'Processing request failed.'
-}
-
 export function isBackgroundProcessingAvailable(): boolean {
-  return isSupabaseConfigured
+  return true
 }
 
 export async function enqueueLectureProcessing(
   lectureId: string,
   options?: { generateNotes?: boolean; forceRetranscribe?: boolean },
 ): Promise<ProcessingEnqueueResult> {
-  if (!supabase) {
-    throw new Error('Storage unavailable. Check your Supabase configuration.')
-  }
-
-  const { data, error } = await supabase.functions.invoke('process-lecture', {
-    body: {
-      lectureId,
+  const data = await apiFetch<{ status: string; id: string }>(`/lectures/${lectureId}/process`, {
+    method: 'POST',
+    body: JSON.stringify({
       generateNotes: options?.generateNotes !== false,
       forceRetranscribe: options?.forceRetranscribe === true,
-    },
+    }),
   })
-
-  if (error) {
-    throw new Error(getInvokeError(data, error))
-  }
-
-  if (data && typeof data === 'object' && 'error' in data) {
-    throw new Error(getInvokeError(data, null))
-  }
 
   return {
     status: (data?.status as ProcessingEnqueueResult['status']) ?? 'processing',
@@ -60,40 +40,15 @@ export async function getLectureProcessingStatus(
   userId: string,
   lectureId: string,
 ): Promise<LectureProcessingStatus> {
-  if (!supabase) {
-    return {
-      lectureStatus: 'uploaded',
-      transcriptStatus: null,
-      notesStatus: null,
-      isProcessing: false,
-    }
-  }
-
-  const [lectureResult, transcriptResult, notesResult] = await Promise.all([
-    supabase
-      .from('lectures')
-      .select('status')
-      .eq('id', lectureId)
-      .eq('user_id', userId)
-      .maybeSingle(),
-    supabase
-      .from('transcripts')
-      .select('status')
-      .eq('lecture_id', lectureId)
-      .eq('user_id', userId)
-      .maybeSingle(),
-    supabase
-      .from('lecture_notes')
-      .select('status')
-      .eq('lecture_id', lectureId)
-      .eq('user_id', userId)
-      .maybeSingle(),
+  const [lecture, transcript, notes] = await Promise.all([
+    apiFetch<{ status: string }>(`/lectures/${lectureId}`).catch(() => ({ status: 'uploaded' })),
+    apiFetch<{ status: string }>(`/transcripts/lecture/${lectureId}`).catch(() => null),
+    apiFetch<{ status: string }>(`/notes/lecture/${lectureId}`).catch(() => null),
   ])
 
-  const lectureStatus = (lectureResult.data as { status?: string } | null)?.status ?? 'uploaded'
-  const transcriptStatus =
-    (transcriptResult.data as { status?: string } | null)?.status ?? null
-  const notesStatus = (notesResult.data as { status?: string } | null)?.status ?? null
+  const lectureStatus = lecture?.status ?? 'uploaded'
+  const transcriptStatus = transcript?.status ?? null
+  const notesStatus = notes?.status ?? null
 
   const isProcessing =
     lectureStatus === 'processing' ||
@@ -141,8 +96,6 @@ export async function triggerLectureProcessing(
   lectureId: string,
   options?: { generateNotes?: boolean; forceRetranscribe?: boolean },
 ): Promise<void> {
-  if (!isBackgroundProcessingAvailable()) return
-
   try {
     await enqueueLectureProcessing(lectureId, options)
   } catch (error) {

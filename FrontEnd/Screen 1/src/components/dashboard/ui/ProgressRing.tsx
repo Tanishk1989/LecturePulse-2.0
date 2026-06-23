@@ -15,7 +15,7 @@ interface ProgressRingProps {
 }
 
 const colorMap = {
-  gold: { stroke: '#D6A20B', glow: 'rgba(214,162,11,0.4)' },
+  gold: { stroke: 'var(--color-accent)', glow: 'rgba(var(--color-accent-rgb),0.4)' },
   emerald: { stroke: '#10B981', glow: 'rgba(16,185,129,0.35)' },
   indigo: { stroke: '#4F46E5', glow: 'rgba(79,70,229,0.35)' },
 }
@@ -48,7 +48,7 @@ export function ProgressRing({
         {gradient && (
           <defs>
             <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#D6A20B" />
+              <stop offset="0%" stopColor="var(--color-accent)" />
               <stop offset="50%" stopColor="#FFE27A" />
               <stop offset="100%" stopColor="#FFF2B3" />
             </linearGradient>

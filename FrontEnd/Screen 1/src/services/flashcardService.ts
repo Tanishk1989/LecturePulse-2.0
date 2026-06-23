@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase'
+import { apiFetch } from '@/lib/api'
 import {
   applySpacedRepetitionReview,
   defaultSpacedRepetitionState,
@@ -14,54 +14,33 @@ import type {
 import { mapRowToFlashcard } from '@/types/flashcard'
 
 export async function getUserFlashcards(userId: string): Promise<Flashcard[]> {
-  if (!supabase) return []
-
-  const { data, error } = await supabase
-    .from('flashcards')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-
-  if (error) {
-    throw new Error(error.message || 'Failed to load flashcards.')
+  try {
+    const data = await apiFetch<FlashcardRow[]>('/flashcards')
+    return data.map(mapRowToFlashcard)
+  } catch {
+    return []
   }
-
-  return (data as FlashcardRow[]).map(mapRowToFlashcard)
 }
 
 export async function getFlashcardsByLectureId(
   userId: string,
   lectureId: string,
 ): Promise<Flashcard[]> {
-  if (!supabase) return []
-
-  const { data, error } = await supabase
-    .from('flashcards')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('lecture_id', lectureId)
-    .order('created_at', { ascending: false })
-
-  if (error) {
-    throw new Error(error.message || 'Failed to load flashcards.')
+  try {
+    const data = await apiFetch<FlashcardRow[]>(`/flashcards/lecture/${lectureId}`)
+    return data.map(mapRowToFlashcard)
+  } catch {
+    return []
   }
-
-  return (data as FlashcardRow[]).map(mapRowToFlashcard)
 }
 
 export async function getFlashcardCount(userId: string): Promise<number> {
-  if (!supabase) return 0
-
-  const { count, error } = await supabase
-    .from('flashcards')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', userId)
-
-  if (error) {
-    throw new Error(error.message || 'Failed to count flashcards.')
+  try {
+    const cards = await getUserFlashcards(userId)
+    return cards.length
+  } catch {
+    return 0
   }
-
-  return count ?? 0
 }
 
 export async function createFlashcards(
@@ -69,34 +48,18 @@ export async function createFlashcards(
   lectureId: string,
   cards: FlashcardInput[],
 ): Promise<Flashcard[]> {
-  if (!supabase) {
-    throw new Error('Storage unavailable. Check your Supabase configuration.')
-  }
-
   const validCards = cards.filter((card) => card.front.trim() && card.back.trim())
   if (validCards.length === 0) return []
 
-  const defaults = defaultSpacedRepetitionState()
-  const now = new Date().toISOString()
-  const payload = validCards.map((card) => ({
-    lecture_id: lectureId,
-    user_id: userId,
-    front: card.front.trim(),
-    back: card.back.trim(),
-    concept: card.concept?.trim() || null,
-    status: 'new' as FlashcardStatus,
-    ease_factor: defaults.easeFactor,
-    interval_days: defaults.intervalDays,
-    updated_at: now,
-  }))
+  const data = await apiFetch<FlashcardRow[]>('/flashcards/batch', {
+    method: 'POST',
+    body: JSON.stringify({
+      lectureId,
+      cards: validCards,
+    }),
+  })
 
-  const { data, error } = await supabase.from('flashcards').insert(payload).select('*')
-
-  if (error) {
-    throw new Error(error.message || 'Failed to save flashcards.')
-  }
-
-  return (data as FlashcardRow[]).map(mapRowToFlashcard)
+  return data.map(mapRowToFlashcard)
 }
 
 export async function reviewFlashcard(
@@ -104,48 +67,29 @@ export async function reviewFlashcard(
   userId: string,
   rating: ReviewRating,
 ): Promise<Flashcard> {
-  if (!supabase) {
-    throw new Error('Storage unavailable. Check your Supabase configuration.')
+  const cards = await getUserFlashcards(userId)
+  const card = cards.find((c) => c.id === flashcardId)
+
+  if (!card) {
+    throw new Error('Flashcard not found.')
   }
 
-  const { data: existing, error: fetchError } = await supabase
-    .from('flashcards')
-    .select('*')
-    .eq('id', flashcardId)
-    .eq('user_id', userId)
-    .single()
-
-  if (fetchError) {
-    throw new Error(fetchError.message || 'Failed to load flashcard.')
-  }
-
-  const card = mapRowToFlashcard(existing as FlashcardRow)
   const result = applySpacedRepetitionReview(flashcardFromSrFields(card), rating)
   const now = new Date().toISOString()
 
   const payload = {
     status: result.status,
-    repetitions: result.repetitions,
-    ease_factor: result.easeFactor,
-    interval_days: result.intervalDays,
-    next_review_at: result.nextReviewAt,
-    last_reviewed_at: now,
-    updated_at: now,
+    nextReviewAt: result.nextReviewAt,
+    lastReviewedAt: now,
+    rating,
   }
 
-  const { data, error } = await supabase
-    .from('flashcards')
-    .update(payload)
-    .eq('id', flashcardId)
-    .eq('user_id', userId)
-    .select('*')
-    .single()
+  const data = await apiFetch<FlashcardRow>(`/flashcards/${flashcardId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
 
-  if (error) {
-    throw new Error(error.message || 'Failed to update flashcard.')
-  }
-
-  return mapRowToFlashcard(data as FlashcardRow)
+  return mapRowToFlashcard(data)
 }
 
 /** @deprecated Use reviewFlashcard with spaced repetition instead */
@@ -159,36 +103,16 @@ export async function updateFlashcardStatus(
 }
 
 export async function deleteFlashcard(flashcardId: string, userId: string): Promise<void> {
-  if (!supabase) {
-    throw new Error('Storage unavailable. Check your Supabase configuration.')
-  }
-
-  const { error } = await supabase
-    .from('flashcards')
-    .delete()
-    .eq('id', flashcardId)
-    .eq('user_id', userId)
-
-  if (error) {
-    throw new Error(error.message || 'Failed to delete flashcard.')
-  }
+  await apiFetch<void>(`/flashcards/${flashcardId}`, {
+    method: 'DELETE',
+  })
 }
 
 export async function deleteFlashcardsByLectureId(
   userId: string,
   lectureId: string,
 ): Promise<void> {
-  if (!supabase) {
-    throw new Error('Storage unavailable. Check your Supabase configuration.')
-  }
-
-  const { error } = await supabase
-    .from('flashcards')
-    .delete()
-    .eq('user_id', userId)
-    .eq('lecture_id', lectureId)
-
-  if (error) {
-    throw new Error(error.message || 'Failed to delete flashcards.')
-  }
+  await apiFetch<void>(`/flashcards/lecture/${lectureId}`, {
+    method: 'DELETE',
+  })
 }

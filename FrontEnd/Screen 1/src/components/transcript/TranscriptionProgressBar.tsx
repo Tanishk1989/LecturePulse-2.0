@@ -11,8 +11,8 @@ interface TranscriptionProgressBarProps {
 const STAGE_LABELS: Record<TranscriptionProgress['stage'], string> = {
   fetching: 'Fetching audio',
   uploading: 'Preparing audio',
-  transcribing: 'Transcribing with Whisper',
-  saving: 'Saving transcript',
+  transcribing: 'Processing lecture',
+  saving: 'Saving results',
 }
 
 export function TranscriptionProgressBar({
@@ -21,7 +21,7 @@ export function TranscriptionProgressBar({
   className,
 }: TranscriptionProgressBarProps) {
   const clamped = Math.max(0, Math.min(100, progress))
-  const label = stage ? STAGE_LABELS[stage] : 'Transcription progress'
+  const label = stage ? STAGE_LABELS[stage] : 'Processing progress'
 
   return (
     <div className={cn('space-y-3', className)}>

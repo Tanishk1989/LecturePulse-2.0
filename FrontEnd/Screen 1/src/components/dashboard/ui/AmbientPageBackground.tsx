@@ -33,7 +33,7 @@ export function AmbientPageBackground({
             y1="0%"
             x2={`${25 + i * 10}%`}
             y2="100%"
-            stroke="rgba(214,162,11,0.35)"
+            stroke="rgba(var(--color-accent-rgb),0.35)"
             strokeWidth="1"
             animate={prefersReducedMotion ? {} : { opacity: [0.08, 0.35, 0.08] }}
             transition={{ duration: 4 + i * 0.4, repeat: Infinity, delay: i * 0.25 }}
@@ -54,7 +54,7 @@ export function AmbientPageBackground({
         ))}
       </svg>
 
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(214,162,11,0.04),transparent_55%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(var(--color-accent-rgb),0.04),transparent_55%)]" />
     </div>
   )
 }

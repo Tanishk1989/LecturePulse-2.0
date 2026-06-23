@@ -126,7 +126,7 @@ export const TranscriptAudioPlayer = forwardRef<
           <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted">
             Playback
           </p>
-          <p className="mt-1 text-sm text-foreground/90">Synced with transcript</p>
+          <p className="mt-1 text-sm text-foreground/90">Synced with playback</p>
         </div>
         <div className="font-mono text-xs tabular-nums text-muted">
           {formatDuration(Math.floor(currentTime))} / {formatDuration(loadedDuration)}
@@ -140,7 +140,7 @@ export const TranscriptAudioPlayer = forwardRef<
             className={cn(
               'flex-1 rounded-full transition-all duration-200',
               bar.active
-                ? 'bg-gradient-to-t from-accent/45 via-accent to-accent-soft shadow-[0_0_12px_rgba(214,162,11,0.25)]'
+                ? 'bg-gradient-to-t from-accent/45 via-accent to-accent-soft shadow-[0_0_12px_rgba(var(--color-accent-rgb),0.25)]'
                 : 'bg-white/[0.07]',
             )}
             style={{ height: `${bar.height}px` }}
@@ -156,7 +156,7 @@ export const TranscriptAudioPlayer = forwardRef<
           className={cn(
             'flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-accent/35',
             'bg-accent/[0.1] text-accent transition-all duration-300 cursor-pointer',
-            'hover:-translate-y-0.5 hover:scale-[1.04] hover:shadow-[0_0_32px_rgba(214,162,11,0.28)]',
+            'hover:-translate-y-0.5 hover:scale-[1.04] hover:shadow-[0_0_32px_rgba(var(--color-accent-rgb),0.28)]',
           )}
         >
           {isPlaying ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6 ml-0.5" />}

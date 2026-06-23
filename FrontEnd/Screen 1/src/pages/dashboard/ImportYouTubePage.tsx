@@ -10,6 +10,7 @@ import {
   isValidYouTubeUrl,
   type YouTubeVideoMetadata,
 } from '@/lib/youtubeUtils'
+import { HighlightedPageTitle, dashboardPageTitleClass } from '@/components/dashboard/ui/DashboardPageShell'
 import { cn } from '@/lib/utils'
 
 type ImportPhase = 'idle' | 'preview' | 'importing' | 'success' | 'failed'
@@ -31,6 +32,16 @@ function ImportPageBackground() {
   )
 }
 
+const SUBJECTS = [
+  'Computer Science',
+  'Mathematics',
+  'Physics',
+  'Biology',
+  'History',
+  'Economics',
+  'Literature',
+]
+
 export function ImportYouTubePage() {
   const { importYouTube } = useLectures()
   const [phase, setPhase] = useState<ImportPhase>('idle')
@@ -39,6 +50,8 @@ export function ImportYouTubePage() {
   const [savedId, setSavedId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isFetching, setIsFetching] = useState(false)
+  const [subjectSelect, setSubjectSelect] = useState('')
+  const [customSubject, setCustomSubject] = useState('')
 
   const reset = useCallback(() => {
     setPhase('idle')
@@ -46,6 +59,8 @@ export function ImportYouTubePage() {
     setMetadata(null)
     setSavedId(null)
     setError(null)
+    setSubjectSelect('')
+    setCustomSubject('')
   }, [])
 
   const handleFetchPreview = useCallback(async () => {
@@ -76,16 +91,17 @@ export function ImportYouTubePage() {
     setError(null)
 
     try {
-      const saved = await importYouTube(metadata)
+      const subjectVal = subjectSelect === 'other' ? customSubject.trim() : subjectSelect
+      const saved = await importYouTube(metadata, subjectVal || undefined)
       if (saved) {
         setSavedId(saved.id)
         setPhase('success')
       } else {
         setPhase('failed')
       }
-    } catch {
+    } catch (err) {
       setPhase('failed')
-      setError('Import failed. Please try again.')
+      setError(err instanceof Error ? err.message : 'Import failed. Please try again.')
     }
   }, [importYouTube, metadata])
 
@@ -108,7 +124,9 @@ export function ImportYouTubePage() {
             >
               <PlaySquare className="h-7 w-7 text-red-400" strokeWidth={1.75} />
             </motion.div>
-            <h1 className="font-heading text-4xl text-foreground md:text-5xl">Import YouTube</h1>
+            <h1 className={dashboardPageTitleClass}>
+              <HighlightedPageTitle title="Import YouTube" />
+            </h1>
             <p className="mt-3 text-sm text-muted md:text-base">
               Paste a YouTube link to import and analyze lecture content.
             </p>
@@ -133,7 +151,7 @@ export function ImportYouTubePage() {
                 </motion.div>
                 <p className="font-heading text-3xl text-foreground">Video imported.</p>
                 <p className="mt-3 max-w-sm text-sm text-muted leading-relaxed">
-                  Your YouTube lecture is saved and ready for transcription.
+                  Your video is saved. We&apos;re turning it into searchable notes and study material.
                 </p>
                 <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                   {savedId && (
@@ -141,10 +159,10 @@ export function ImportYouTubePage() {
                       to={`/transcript/${savedId}`}
                       className={cn(
                         'inline-flex items-center justify-center rounded-full bg-accent px-6 py-3 text-sm font-medium text-background',
-                        'shadow-[0_0_24px_rgba(214,162,11,0.2)] hover:bg-accent-soft hover:-translate-y-0.5 transition-all duration-300 cursor-pointer',
+                        'shadow-[0_0_24px_rgba(var(--color-accent-rgb),0.2)] hover:bg-accent-soft hover:-translate-y-0.5 transition-all duration-300 cursor-pointer',
                       )}
                     >
-                      Transcribe Now
+                      View Progress
                     </Link>
                   )}
                   <Link
@@ -313,6 +331,38 @@ export function ImportYouTubePage() {
                         'focus:border-red-500/35 focus:shadow-[0_0_24px_rgba(255,59,48,0.1)]',
                       )}
                     />
+                  </div>
+
+                  <div className="mt-5 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4">
+                    <label
+                      htmlFor="subject-select"
+                      className="block text-xs font-semibold text-muted mb-2 uppercase tracking-wider"
+                    >
+                      Lecture Subject (Optional)
+                    </label>
+                    <div className="flex flex-col gap-3">
+                      <select
+                        id="subject-select"
+                        value={subjectSelect}
+                        onChange={(e) => setSubjectSelect(e.target.value)}
+                        className="w-full rounded-xl border border-white/[0.08] bg-[#0E0E0E] px-3 py-2 text-sm text-foreground outline-none focus:border-red-500/35"
+                      >
+                        <option value="" className="bg-[#0D0D0D]">Select a subject...</option>
+                        {SUBJECTS.map((sub) => (
+                          <option key={sub} value={sub} className="bg-[#0D0D0D]">{sub}</option>
+                        ))}
+                        <option value="other" className="bg-[#0D0D0D]">Other (Type Custom...)</option>
+                      </select>
+                      {subjectSelect === 'other' && (
+                        <input
+                          type="text"
+                          value={customSubject}
+                          onChange={(e) => setCustomSubject(e.target.value)}
+                          placeholder="Type custom subject (e.g. Chemistry, Philosophy)"
+                          className="w-full rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-foreground outline-none focus:border-red-500/35"
+                        />
+                      )}
+                    </div>
                   </div>
 
                   {error && (

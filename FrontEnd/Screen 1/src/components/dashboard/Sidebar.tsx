@@ -1,24 +1,33 @@
 import { NavLink, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X } from 'lucide-react'
+import { X, Sun, Moon } from 'lucide-react'
 import { PulseIcon } from '@/components/shared/PulseIcon'
 import { dashboardNavSections } from '@/config/dashboardNav'
 import { DashboardNavIcon } from '@/components/dashboard/ui/DashboardNavIcon'
+import { SidebarAddLectureItem } from '@/components/dashboard/SidebarAddLectureItem'
 import { useDashboard } from '@/context/DashboardContext'
+import { useTheme } from '@/context/ThemeContext'
 import { cn } from '@/lib/utils'
+import { ScrollFadeContainer } from '@/components/shared/ScrollFadeContainer'
 
-function SidebarLogo() {
+function SidebarLogo({ isDrawer, onToggle }: { isDrawer: boolean; onToggle?: () => void }) {
   return (
-    <div className="flex items-center gap-2.5 px-1 shrink-0">
+    <div
+      onClick={!isDrawer ? onToggle : undefined}
+      className={cn(
+        'flex items-center gap-2.5 px-1 shrink-0',
+        !isDrawer && 'cursor-pointer hover:opacity-85 transition-opacity duration-200'
+      )}
+    >
       <div
         className="flex h-9 w-9 items-center justify-center rounded-xl border border-accent/25 bg-accent/[0.06]"
-        style={{ boxShadow: '0 0 16px rgba(214,162,11,0.12)' }}
+        style={{ boxShadow: '0 0 16px rgba(var(--color-accent-rgb),0.12)' }}
       >
         <PulseIcon size={22} />
       </div>
-      <span className="font-heading text-lg">
+      <span className={cn('font-heading text-lg', isDrawer ? 'block' : 'hidden lg:block')}>
         <span className="text-foreground">Lecture</span>
-        <span className="text-accent" style={{ textShadow: '0 0 20px rgba(214,162,11,0.25)' }}>
+        <span className="text-accent" style={{ textShadow: '0 0 20px rgba(var(--color-accent-rgb),0.25)' }}>
           Pulse
         </span>
       </span>
@@ -26,13 +35,15 @@ function SidebarLogo() {
   )
 }
 
-function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarContent({ onNavigate, isDrawer = true }: { onNavigate?: () => void; isDrawer?: boolean }) {
   const location = useLocation()
+  const { theme, toggleTheme } = useTheme()
+  const { toggleSidebar } = useDashboard()
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06] shrink-0">
-        <SidebarLogo />
+    <div className="flex h-full flex-col overflow-visible">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+        <SidebarLogo isDrawer={isDrawer} onToggle={toggleSidebar} />
         {onNavigate && (
           <button
             onClick={onNavigate}
@@ -44,48 +55,74 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         )}
       </div>
 
-      <nav className="flex-1 overflow-hidden px-3 py-4 space-y-5">
-        {dashboardNavSections.map((section) => (
-          <div key={section.id}>
-            <p className="px-3 mb-2 text-[10px] font-semibold tracking-[0.2em] uppercase text-muted">
-              {section.title}
-            </p>
-            <ul className="space-y-0.5">
-              {section.items.map((item) => {
-                const isActive =
-                  item.path === '/dashboard'
-                    ? location.pathname === '/dashboard'
-                    : location.pathname.startsWith(item.path)
+      <ScrollFadeContainer
+        fadeColor="var(--sidebar-bg)"
+        className={cn(
+          'flex-1 py-4',
+          isDrawer ? 'pl-4 pr-3' : 'pl-3 pr-2 lg:pl-4 lg:pr-3'
+        )}
+      >
+        <nav className="space-y-5">
+          {dashboardNavSections.map((section) => (
+            <div key={section.id}>
+              <p className={cn(
+                'px-3 mb-2 text-[10px] font-semibold tracking-[0.2em] uppercase text-muted',
+                isDrawer ? 'block' : 'hidden lg:block'
+              )}>
+                {section.title}
+              </p>
+              <ul className="space-y-0.5 pl-1">
+                {section.id === 'create' ? (
+                  <SidebarAddLectureItem onNavigate={onNavigate} isDrawer={isDrawer} />
+                ) : (
+                  section.items.map((item) => {
+                    const path = item.path!
+                    const isActive =
+                      path === '/dashboard'
+                        ? location.pathname === '/dashboard'
+                        : location.pathname.startsWith(path)
 
-                return (
-                  <li key={item.id}>
-                    <NavLink
-                      to={item.path}
-                      onClick={onNavigate}
-                      className={cn(
-                        'group flex items-center gap-3 rounded-full px-3 py-2 text-[13px] transition-all duration-300 cursor-pointer',
-                        isActive
-                          ? 'bg-accent/[0.12] text-accent border-l-2 border-accent shadow-[0_0_24px_rgba(214,162,11,0.12)] pl-[10px]'
-                          : 'text-muted hover:text-foreground hover:bg-white/[0.03] border-l-2 border-transparent',
-                      )}
-                    >
-                      <DashboardNavIcon icon={item.icon} active={isActive} />
-                      <span className={cn(isActive && 'font-medium')}>{item.label}</span>
-                    </NavLink>
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
-        ))}
-      </nav>
+                    const isStudyHub = item.id === 'study-hub'
 
-      <div className="px-5 py-4 border-t border-white/[0.06] shrink-0">
+                    return (
+                      <li key={item.id}>
+                        <NavLink
+                          to={path}
+                          onClick={onNavigate}
+                          className={cn(
+                            'group flex items-center gap-3 rounded-full px-3 py-2 text-[13px] transition-all duration-300 cursor-pointer',
+                            isActive
+                              ? 'text-accent border-l-[3px] border-accent pl-[10px]'
+                              : 'text-muted hover:text-foreground border-l-[3px] border-transparent',
+                            isStudyHub
+                              ? 'study-hub-glow'
+                              : isActive
+                                ? 'bg-gradient-to-r from-accent/12 to-transparent'
+                                : 'hover:bg-white/[0.03]',
+                          )}
+                        >
+                          <DashboardNavIcon icon={item.icon} active={isActive} id={item.id} />
+                          <span className={cn(isActive && 'font-medium', isDrawer ? 'block' : 'hidden lg:block')}>{item.label}</span>
+                        </NavLink>
+                      </li>
+                    )
+                  })
+                )}
+              </ul>
+            </div>
+          ))}
+        </nav>
+      </ScrollFadeContainer>
+
+      <div className={cn('py-4 border-t border-border shrink-0 flex items-center gap-2', isDrawer ? 'px-5' : 'px-3 lg:px-5')}>
         <a
           href="https://github.com"
           target="_blank"
           rel="noopener noreferrer"
-          className="group flex items-center gap-2.5 rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-2.5 text-xs text-muted hover:text-foreground hover:border-accent/20 hover:shadow-[0_0_20px_rgba(214,162,11,0.08)] transition-all duration-300 cursor-pointer"
+          className={cn(
+            'group flex-1 flex items-center gap-2.5 rounded-xl border border-border bg-white/[0.02] px-3 py-2.5 text-xs text-muted hover:text-foreground hover:border-accent/20 hover:shadow-sm transition-all duration-300 cursor-pointer',
+            isDrawer ? 'flex' : 'hidden lg:flex'
+          )}
         >
           <svg
             viewBox="0 0 24 24"
@@ -99,6 +136,17 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           </svg>
           <span>Open Source</span>
         </a>
+        <button
+          onClick={toggleTheme}
+          className={cn(
+            'p-2.5 rounded-xl border border-border bg-white/[0.02] text-muted hover:text-foreground hover:border-accent/20 hover:shadow-sm transition-all duration-300 cursor-pointer flex items-center justify-center shrink-0',
+            isDrawer ? 'w-auto' : 'w-full lg:w-auto'
+          )}
+          aria-label="Toggle theme"
+          title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        </button>
       </div>
     </div>
   )
@@ -106,8 +154,8 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
 export function Sidebar() {
   return (
-    <aside className="hidden lg:flex lg:w-[280px] lg:shrink-0 lg:sticky lg:top-0 lg:h-screen lg:flex-col lg:overflow-hidden lg:border-r lg:border-white/[0.08] lg:bg-background">
-      <SidebarContent />
+    <aside className="hidden sm:flex sm:w-[72px] lg:w-[280px] sm:shrink-0 sm:sticky sm:top-0 sm:h-screen sm:flex-col sm:overflow-x-visible sm:overflow-y-auto sm:border-r sm:border-border sm:bg-[var(--sidebar-bg)]">
+      <SidebarContent isDrawer={false} />
     </aside>
   )
 }
@@ -131,9 +179,9 @@ export function MobileSidebarDrawer() {
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
             transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-            className="fixed inset-y-0 left-0 z-50 w-[280px] border-r border-white/[0.08] bg-background lg:hidden overflow-hidden"
+            className="fixed inset-y-0 left-0 z-50 w-[280px] border-r border-border bg-[var(--sidebar-bg)] lg:hidden overflow-x-visible overflow-y-auto"
           >
-            <SidebarContent onNavigate={() => setSidebarOpen(false)} />
+            <SidebarContent onNavigate={() => setSidebarOpen(false)} isDrawer={true} />
           </motion.aside>
         </>
       )}

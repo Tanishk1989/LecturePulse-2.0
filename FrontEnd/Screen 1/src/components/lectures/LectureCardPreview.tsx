@@ -182,7 +182,7 @@ export const LectureCardPreview = forwardRef<LectureCardPreviewHandle, LectureCa
             aria-label={isPlaying ? 'Pause audio' : 'Play audio'}
             className={cn(
               'flex shrink-0 items-center justify-center rounded-full border border-accent/30 bg-accent/[0.08] text-accent',
-              'transition-all duration-300 cursor-pointer hover:scale-[1.03] hover:shadow-[0_0_20px_rgba(214,162,11,0.18)]',
+              'transition-all duration-300 cursor-pointer hover:scale-[1.03] hover:shadow-[0_0_20px_rgba(var(--color-accent-rgb),0.18)]',
               compact ? 'h-9 w-9' : 'h-11 w-11',
             )}
           >

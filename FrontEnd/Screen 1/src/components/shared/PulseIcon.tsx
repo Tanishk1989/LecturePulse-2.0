@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils'
+import { useTheme } from '@/context/ThemeContext'
 
 interface PulseIconProps {
   className?: string
@@ -7,7 +8,21 @@ interface PulseIconProps {
 }
 
 export function PulseIcon({ className, size = 32, glow = true }: PulseIconProps) {
+  let theme = 'dark'
+  try {
+    const themeContext = useTheme()
+    theme = themeContext.theme
+  } catch {
+    // Fallback if rendered outside ThemeProvider
+  }
+
+  const isLight = theme === 'light'
   const id = `pulse-${size}`
+
+  const stop1 = 'var(--color-accent)'
+  const stop2 = isLight ? '#7A9E14' : '#FFE27A'
+  const stop3 = isLight ? '#E4F0C8' : '#FFF2B3'
+  const accentPathStroke = isLight ? 'var(--color-accent)' : '#FFF2B3'
 
   return (
     <svg
@@ -19,9 +34,9 @@ export function PulseIcon({ className, size = 32, glow = true }: PulseIconProps)
     >
       <defs>
         <linearGradient id={`${id}-grad`} x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#D6A20B" />
-          <stop offset="50%" stopColor="#FFE27A" />
-          <stop offset="100%" stopColor="#FFF2B3" />
+          <stop offset="0%" stopColor={stop1} />
+          <stop offset="50%" stopColor={stop2} />
+          <stop offset="100%" stopColor={stop3} />
         </linearGradient>
         {glow && (
           <filter id={`${id}-glow`} x="-50%" y="-50%" width="200%" height="200%">
@@ -38,7 +53,7 @@ export function PulseIcon({ className, size = 32, glow = true }: PulseIconProps)
           cx="16"
           cy="16"
           r="14"
-          fill="rgba(214,162,11,0.12)"
+          fill="rgba(var(--color-accent-rgb),0.12)"
           style={{ filter: 'blur(4px)' }}
         />
       )}
@@ -53,7 +68,7 @@ export function PulseIcon({ className, size = 32, glow = true }: PulseIconProps)
       />
       <path
         d="M13 6 L15 18 L17 12"
-        stroke="#FFF2B3"
+        stroke={accentPathStroke}
         strokeWidth="1"
         fill="none"
         strokeLinecap="round"

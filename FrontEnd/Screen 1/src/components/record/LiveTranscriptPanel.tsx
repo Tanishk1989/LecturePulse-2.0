@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useReducedMotion } from 'framer-motion'
 import { AlertCircle, Loader2 } from 'lucide-react'
 import type { LiveTranscriptChunk } from '@/hooks/useLiveTranscription'
 import { cn } from '@/lib/utils'
@@ -18,7 +18,6 @@ interface LiveTranscriptPanelProps {
 export function LiveTranscriptPanel({
   chunks,
   interimText = '',
-  latestChunkId,
   isProcessing,
   error,
   onRetry,
@@ -28,27 +27,62 @@ export function LiveTranscriptPanel({
   const prefersReducedMotion = useReducedMotion()
   const scrollRef = useRef<HTMLDivElement>(null)
 
+  const finalChunks = useMemo(() => chunks.filter((chunk) => !chunk.isInterim), [chunks])
+  const interimChunk = useMemo(() => chunks.find((chunk) => chunk.isInterim), [chunks])
+  const displayInterim = interimChunk?.text || interimText
+
+  const latestChunk = useMemo(() => finalChunks[finalChunks.length - 1], [finalChunks])
+
+  const latestTokens = useMemo(() => {
+    if (!latestChunk) return []
+    return latestChunk.text.split(/(\s+)/)
+  }, [latestChunk])
+
+  const [revealedTokenIndex, setRevealedTokenIndex] = useState(0)
+
+  useEffect(() => {
+    if (!latestChunk) {
+      setRevealedTokenIndex(0)
+      return
+    }
+
+    if (prefersReducedMotion) {
+      setRevealedTokenIndex(latestTokens.length)
+      return
+    }
+
+    setRevealedTokenIndex(0)
+
+    const interval = setInterval(() => {
+      setRevealedTokenIndex((prev) => {
+        if (prev >= latestTokens.length) {
+          clearInterval(interval)
+          return prev
+        }
+        return prev + 2 // Reveal word + trailing space
+      })
+    }, 150) // 150ms reveal rate per word
+
+    return () => clearInterval(interval)
+  }, [latestChunk?.id, latestTokens.length, prefersReducedMotion])
+
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
     el.scrollTo({ top: el.scrollHeight, behavior: prefersReducedMotion ? 'auto' : 'smooth' })
-  }, [chunks, interimText, isProcessing, prefersReducedMotion])
-
-  const finalChunks = chunks.filter((chunk) => !chunk.isInterim)
-  const interimChunk = chunks.find((chunk) => chunk.isInterim)
-  const displayInterim = interimChunk?.text ?? interimText
+  }, [chunks, interimText, isProcessing, prefersReducedMotion, revealedTokenIndex])
 
   return (
     <div
       className={cn(
         'relative flex flex-col overflow-hidden rounded-2xl border border-accent/20',
-        'bg-white/[0.03] backdrop-blur-xl shadow-[0_8px_40px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(214,162,11,0.08)]',
+        'bg-white/[0.03] backdrop-blur-xl shadow-[0_8px_40px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(var(--color-accent-rgb),0.08)]',
         className,
       )}
     >
       <div className="border-b border-white/[0.06] px-4 py-3 md:px-5">
         <p className="text-[10px] font-semibold tracking-[0.22em] uppercase text-accent/80">
-          Live Transcript
+          Live Captions
         </p>
       </div>
 
@@ -58,61 +92,46 @@ export function LiveTranscriptPanel({
       >
         {finalChunks.length === 0 && !displayInterim && !isProcessing && !error && (
           <p className="text-sm text-muted/70 italic">
-            {paused ? 'Transcript paused.' : 'Speak — your words will appear here…'}
+            {paused ? 'Captions paused.' : 'Speak — your words will appear here…'}
           </p>
         )}
 
-        <div className="space-y-4">
-          <AnimatePresence initial={false}>
-            {finalChunks.map((chunk) => {
-              const isLatest = chunk.id === latestChunkId
+        <div className="text-[15px] leading-[1.75] text-foreground/90 select-text">
+          {finalChunks.map((chunk, chunkIdx) => {
+            const isLatest = chunkIdx === finalChunks.length - 1
+
+            if (!isLatest) {
               return (
-                <motion.div
-                  key={chunk.id}
-                  initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.35, ease: 'easeOut' }}
-                  className={cn(
-                    'rounded-xl px-3 py-2.5 transition-colors duration-500',
-                    isLatest && 'bg-accent/[0.06] border border-accent/15',
-                  )}
-                >
-                  <span className="font-mono text-[11px] tabular-nums text-muted/80">
-                    {chunk.timestampLabel}
-                  </span>
-                  <p
-                    className={cn(
-                      'mt-1 text-sm leading-relaxed md:text-[15px]',
-                      isLatest ? 'text-foreground' : 'text-foreground/90',
-                    )}
-                  >
-                    {chunk.text}
-                  </p>
-                </motion.div>
+                <span key={chunk.id} className="text-foreground/95">
+                  {chunk.text}{' '}
+                </span>
               )
-            })}
-          </AnimatePresence>
+            }
+
+            const revealedText = latestTokens.slice(0, revealedTokenIndex).join('')
+
+            return (
+              <span key={chunk.id} className="text-foreground/95">
+                {revealedText}
+              </span>
+            )
+          })}
 
           {displayInterim && (
-            <motion.p
-              key="interim"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="rounded-xl px-3 py-2.5 text-sm leading-relaxed text-muted/70 italic md:text-[15px]"
-            >
+            <span className="text-muted/65 italic ml-1">
               {displayInterim}
-            </motion.p>
+            </span>
           )}
 
           {isProcessing && !displayInterim && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex items-center gap-2 text-xs text-muted"
-            >
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-red/80" />
-              Listening…
-            </motion.div>
+            <span className="inline-flex items-center gap-1.5 text-xs text-muted/60 ml-2">
+              <Loader2 className="h-3 w-3 animate-spin text-accent" />
+              listening…
+            </span>
+          )}
+
+          {!paused && !error && (
+            <span className="inline-block h-2 w-2 rounded-full bg-accent animate-pulse ml-2" />
           )}
         </div>
       </div>
@@ -122,7 +141,7 @@ export function LiveTranscriptPanel({
           <div className="flex items-start gap-2.5">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red" />
             <div className="flex-1">
-              <p className="text-sm text-red/90">Transcription failed.</p>
+              <p className="text-sm text-red/90">Processing failed.</p>
               <p className="mt-0.5 text-xs text-muted">{error}</p>
               {onRetry && (
                 <button
@@ -140,3 +159,4 @@ export function LiveTranscriptPanel({
     </div>
   )
 }
+

@@ -1,18 +1,32 @@
-import { useEffect, useMemo, useRef, type ReactNode } from 'react'
-import { motion, useReducedMotion } from 'framer-motion'
-import { formatTimestamp } from '@/lib/transcriptUtils'
+import React, {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
+import { useReducedMotion } from 'framer-motion'
 import type { TranscriptSearchMatch } from '@/hooks/useTranscriptSearch'
 import type { TranscriptSegment } from '@/types/transcript'
 import { cn } from '@/lib/utils'
+import { ScrollFadeContainer } from '@/components/shared/ScrollFadeContainer'
 
 interface TranscriptSegmentListProps {
   segments: TranscriptSegment[]
   fullText: string
-  currentTime: number
   query: string
   activeMatch: TranscriptSearchMatch | null
   onSeek: (seconds: number) => void
+  hasPlayer?: boolean
+  onScroll?: (e: React.UIEvent<HTMLDivElement>) => void
   className?: string
+}
+
+export interface TranscriptSegmentListHandle {
+  updateTime: (time: number) => void
 }
 
 function highlightText(
@@ -53,25 +67,150 @@ function highlightText(
   })
 }
 
-export function TranscriptSegmentList({
-  segments,
-  fullText,
-  currentTime,
-  query,
-  activeMatch,
-  onSeek,
-  className,
-}: TranscriptSegmentListProps) {
+export const TranscriptSegmentList = forwardRef<
+  TranscriptSegmentListHandle,
+  TranscriptSegmentListProps
+>(function TranscriptSegmentList(
+  { segments, fullText, query, activeMatch, onSeek, hasPlayer = true, onScroll, className },
+  ref,
+) {
   const prefersReducedMotion = useReducedMotion()
-  const activeRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
   const matchRef = useRef<HTMLDivElement>(null)
 
-  const activeSegmentId = useMemo(() => {
-    const active = segments.find(
-      (segment) => currentTime >= segment.start && currentTime < segment.end,
-    )
-    return active?.id ?? null
-  }, [currentTime, segments])
+  // Simulation timer for reading mode when there is no player
+  const [simulatedTime, setSimulatedTime] = useState(0)
+  const isSimulated = !hasPlayer && !prefersReducedMotion && !query.trim()
+
+  const maxTime = useMemo(() => {
+    if (segments.length === 0) return 0
+    return segments[segments.length - 1].end
+  }, [segments])
+
+  useEffect(() => {
+    if (!isSimulated) return
+
+    const startTime = performance.now()
+    let animationFrameId: number
+
+    const tick = () => {
+      const elapsed = (performance.now() - startTime) / 1000
+      if (elapsed >= maxTime) {
+        setSimulatedTime(maxTime)
+      } else {
+        setSimulatedTime(elapsed)
+        animationFrameId = requestAnimationFrame(tick)
+      }
+    }
+
+    animationFrameId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(animationFrameId)
+  }, [isSimulated, maxTime])
+
+  // Flat mapping of words to quickly resolve timing bounds and DOM elements
+  const flatWords = useMemo(() => {
+    const list: { key: string; start: number; end: number }[] = []
+    segments.forEach((segment, segmentIndex) => {
+      const tokens = segment.text.split(/(\s+)/)
+      const wordTokens = tokens.filter((t) => t.trim().length > 0)
+      const totalWords = wordTokens.length
+      const duration = segment.end - segment.start
+      const timePerWord = duration > 0 ? duration / totalWords : 0
+
+      let wordIdx = 0
+      tokens.forEach((token) => {
+        const isWhitespace = token.trim().length === 0
+        if (!isWhitespace) {
+          const currentWordIdx = wordIdx
+          wordIdx += 1
+          list.push({
+            key: `${segmentIndex}-${currentWordIdx}`,
+            start: segment.start + currentWordIdx * timePerWord,
+            end: segment.start + (currentWordIdx + 1) * timePerWord,
+          })
+        }
+      })
+    })
+    return list
+  }, [segments])
+
+  const wordRefs = useRef<Map<string, HTMLSpanElement>>(new Map())
+  const lastActiveIndexRef = useRef<number>(-1)
+
+  // High-performance DOM-direct updates
+  const localUpdateTime = useCallback(
+    (time: number) => {
+      if (prefersReducedMotion || query.trim() || flatWords.length === 0) return
+
+      let activeIdx = -1
+      for (let i = 0; i < flatWords.length; i++) {
+        if (time >= flatWords[i].start && time < flatWords[i].end) {
+          activeIdx = i
+          break
+        }
+      }
+
+      if (activeIdx === -1) {
+        let lastPlayedIdx = -1
+        for (let i = flatWords.length - 1; i >= 0; i--) {
+          if (time >= flatWords[i].end) {
+            lastPlayedIdx = i
+            break
+          }
+        }
+        activeIdx = lastPlayedIdx + 1
+      }
+
+      const prevActiveIndex = lastActiveIndexRef.current
+      if (activeIdx === prevActiveIndex) return
+
+      flatWords.forEach((word, idx) => {
+        const el = wordRefs.current.get(word.key)
+        if (!el) return
+
+        if (idx < activeIdx) {
+          el.className =
+            'transition-all duration-150 cursor-pointer select-text text-muted/50 hover:text-accent hover:underline hover:decoration-accent/35'
+        } else if (idx === activeIdx) {
+          el.className =
+            'transition-all duration-150 cursor-pointer select-text text-accent border-b border-accent/40 font-semibold hover:text-accent hover:underline hover:decoration-accent/35'
+        } else {
+          el.className =
+            'transition-all duration-150 cursor-pointer select-text text-foreground/90 hover:text-accent hover:underline hover:decoration-accent/35'
+        }
+      })
+
+      lastActiveIndexRef.current = activeIdx
+    },
+    [flatWords, prefersReducedMotion, query],
+  )
+
+  useImperativeHandle(ref, () => ({
+    updateTime: localUpdateTime,
+  }))
+
+  useEffect(() => {
+    if (isSimulated) {
+      localUpdateTime(simulatedTime)
+    }
+  }, [isSimulated, simulatedTime, localUpdateTime])
+
+  useEffect(() => {
+    // Reset indices when flatWords or query changes
+    lastActiveIndexRef.current = -1
+    const timer = setTimeout(() => {
+      wordRefs.current.forEach((el) => {
+        if (query.trim() || prefersReducedMotion) {
+          el.className =
+            'transition-all duration-150 cursor-pointer select-text text-foreground/90 hover:text-accent hover:underline hover:decoration-accent/35'
+        } else {
+          el.className =
+            'transition-all duration-150 cursor-pointer select-text text-foreground/90 hover:text-accent hover:underline hover:decoration-accent/35'
+        }
+      })
+    }, 50)
+    return () => clearTimeout(timer)
+  }, [flatWords, query, prefersReducedMotion])
 
   useEffect(() => {
     if (query.trim() && activeMatch) {
@@ -79,21 +218,22 @@ export function TranscriptSegmentList({
         behavior: prefersReducedMotion ? 'auto' : 'smooth',
         block: 'center',
       })
+    }
+  }, [activeMatch, prefersReducedMotion, query])
+
+  const handleWordClick = (wordStart: number) => {
+    const selection = window.getSelection()?.toString().trim()
+    if (selection) {
+      // Ignore click seek when text is selected to avoid conflict
       return
     }
-
-    if (!query.trim() && activeSegmentId != null) {
-      activeRef.current?.scrollIntoView({
-        behavior: prefersReducedMotion ? 'auto' : 'smooth',
-        block: 'center',
-      })
-    }
-  }, [activeMatch, activeSegmentId, prefersReducedMotion, query])
+    onSeek(wordStart)
+  }
 
   if (segments.length === 0 && fullText) {
     return (
       <div className={cn('px-1 py-2', className)}>
-        <p className="text-[15px] leading-[1.75] text-foreground/90">
+        <p className="text-[15px] leading-[2.1] text-foreground/90">
           {highlightText(fullText, query, activeMatch, 0)}
         </p>
       </div>
@@ -104,68 +244,78 @@ export function TranscriptSegmentList({
     return null
   }
 
+  if (query.trim()) {
+    return (
+      <ScrollFadeContainer
+        ref={listRef}
+        onScroll={onScroll}
+        fadeColor="var(--background)"
+        className={cn('min-h-0 flex-1 px-1 pr-3', className)}
+      >
+        {segments.map((segment, segmentIndex) => {
+          const isMatchSegment = activeMatch?.segmentIndex === segmentIndex
+          return (
+            <div key={segment.id} ref={isMatchSegment ? matchRef : undefined}>
+              <p className="mb-6 text-[15px] leading-[2.1] text-foreground/90 select-text">
+                {highlightText(segment.text, query, activeMatch, segmentIndex)}
+              </p>
+            </div>
+          )
+        })}
+      </ScrollFadeContainer>
+    )
+  }
+
   return (
-    <div className={cn('min-h-0 flex-1 space-y-0 overflow-y-auto px-1', className)}>
+    <ScrollFadeContainer
+      ref={listRef}
+      onScroll={onScroll}
+      fadeColor="var(--background)"
+      className={cn('min-h-0 flex-1 px-1 pr-3', className)}
+    >
       {segments.map((segment, segmentIndex) => {
-        const isActive = segment.id === activeSegmentId && !query.trim()
-        const isMatchSegment = activeMatch?.segmentIndex === segmentIndex
+        const tokens = segment.text.split(/(\s+)/)
+        const wordTokens = tokens.filter((t) => t.trim().length > 0)
+        const totalWords = wordTokens.length
+        const duration = segment.end - segment.start
+        const timePerWord = duration > 0 ? duration / totalWords : 0
+
+        let wordIdx = 0
 
         return (
-          <motion.div
+          <p
             key={segment.id}
-            ref={
-              isMatchSegment && query.trim()
-                ? matchRef
-                : isActive
-                  ? activeRef
-                  : undefined
-            }
-            initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: Math.min(segmentIndex * 0.02, 0.4) }}
-            role="button"
-            tabIndex={0}
-            onClick={() => onSeek(segment.start)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault()
-                onSeek(segment.start)
-              }
-            }}
-            className={cn(
-              'group cursor-pointer rounded-2xl border px-4 py-4 transition-all duration-200',
-              isActive
-                ? 'border-accent/25 bg-accent/[0.07] shadow-[0_0_28px_rgba(214,162,11,0.07)]'
-                : 'border-transparent hover:border-accent/15 hover:bg-accent/[0.04]',
-            )}
+            className="mb-6 text-[15px] leading-[2.1] text-foreground/90 select-text"
           >
-            <div className="mb-2 flex items-center gap-3">
-              <span
-                className={cn(
-                  'font-mono text-xs tabular-nums transition-colors',
-                  isActive ? 'text-accent' : 'text-muted group-hover:text-accent/80',
-                )}
-              >
-                {formatTimestamp(segment.start)}
-              </span>
-              <div
-                className={cn(
-                  'h-px flex-1 transition-colors',
-                  isActive ? 'bg-accent/25' : 'bg-white/[0.06] group-hover:bg-accent/15',
-                )}
-              />
-            </div>
-            <p
-              className={cn(
-                'text-[15px] leading-[1.75] transition-colors select-text',
-                isActive ? 'text-foreground' : 'text-foreground/85 group-hover:text-foreground',
-              )}
-            >
-              {highlightText(segment.text, query, activeMatch, segmentIndex)}
-            </p>
-          </motion.div>
+            {tokens.map((token, index) => {
+              const isWhitespace = token.trim().length === 0
+              if (isWhitespace) {
+                return <span key={index}>{token}</span>
+              }
+
+              const currentWordIdx = wordIdx
+              wordIdx += 1
+
+              const wordStart = segment.start + currentWordIdx * timePerWord
+              const wordKey = `${segmentIndex}-${currentWordIdx}`
+
+              return (
+                <span
+                  key={index}
+                  ref={(el) => {
+                    if (el) wordRefs.current.set(wordKey, el)
+                    else wordRefs.current.delete(wordKey)
+                  }}
+                  onClick={() => handleWordClick(wordStart)}
+                  className="transition-all duration-150 cursor-pointer select-text text-foreground/90 hover:text-accent hover:underline hover:decoration-accent/35"
+                >
+                  {token}
+                </span>
+              )
+            })}
+          </p>
         )
       })}
-    </div>
+    </ScrollFadeContainer>
   )
-}
+})

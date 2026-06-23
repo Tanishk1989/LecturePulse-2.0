@@ -1,18 +1,7 @@
-import { isSupabaseConfigured, supabase } from '@/lib/supabase'
-
-const AI_UNAVAILABLE_MESSAGE =
-  'AI service unavailable. Deploy Supabase edge functions and set the GROQ_API_KEY secret.'
+import { apiFetch } from '@/lib/api'
 
 export function isAiBackendConfigured(): boolean {
-  return isSupabaseConfigured
-}
-
-function getInvokeError(data: unknown, error: { message?: string } | null): string {
-  if (data && typeof data === 'object' && 'error' in data) {
-    const message = (data as { error?: string }).error
-    if (message) return message
-  }
-  return error?.message || AI_UNAVAILABLE_MESSAGE
+  return true
 }
 
 export async function invokeGroqChat(
@@ -20,101 +9,53 @@ export async function invokeGroqChat(
   userPrompt: string,
   options?: { temperature?: number; model?: string },
 ): Promise<string> {
-  if (!supabase) {
-    throw new Error(AI_UNAVAILABLE_MESSAGE)
-  }
-
-  const { data, error } = await supabase.functions.invoke('groq-chat', {
-    body: {
+  const data = await apiFetch<{ content: string }>('/ai/chat', {
+    method: 'POST',
+    body: JSON.stringify({
       systemPrompt,
       userPrompt,
       temperature: options?.temperature ?? 0.4,
       model: options?.model,
-    },
+    }),
   })
 
-  if (error || !data?.content) {
-    throw new Error(getInvokeError(data, error))
-  }
-
-  return String(data.content).trim()
+  return data.content.trim()
 }
 
-export async function invokeYouTubeTranscribe(
-  youtubeUrl: string,
-  language?: string,
-): Promise<unknown> {
-  if (!supabase) {
-    throw new Error(AI_UNAVAILABLE_MESSAGE)
-  }
-
-  const { data, error } = await supabase.functions.invoke('youtube-transcribe', {
-    body: { youtubeUrl, language },
-  })
-
-  if (error) {
-    throw new Error(getInvokeError(data, error))
-  }
-
-  if (data && typeof data === 'object' && 'error' in data) {
-    throw new Error(getInvokeError(data, null))
-  }
-
-  return data
+export interface TranscriptionPayload {
+  text?: string
+  language?: string
+  duration?: number
+  segments?: Array<{ id: number; start: number; end: number; text: string }>
 }
 
 export async function invokeTranscribeAudio(
   audioUrl: string,
   language?: string,
-): Promise<unknown> {
-  if (!supabase) {
-    throw new Error(AI_UNAVAILABLE_MESSAGE)
-  }
-
-  const { data, error } = await supabase.functions.invoke('transcribe-audio', {
-    body: { audioUrl, language },
+): Promise<TranscriptionPayload> {
+  return apiFetch<TranscriptionPayload>('/ai/transcribe', {
+    method: 'POST',
+    body: JSON.stringify({ audioUrl, language }),
   })
-
-  if (error) {
-    throw new Error(getInvokeError(data, error))
-  }
-
-  if (data && typeof data === 'object' && 'error' in data) {
-    throw new Error(getInvokeError(data, null))
-  }
-
-  return data
 }
 
-export async function invokeExtractPdfText(pdfUrl: string): Promise<{
-  text: string
-  pageCount: number | null
-}> {
-  if (!supabase) {
-    throw new Error(AI_UNAVAILABLE_MESSAGE)
-  }
-
-  const { data, error } = await supabase.functions.invoke('extract-pdf-text', {
-    body: { pdfUrl },
+export async function invokeYouTubeTranscribe(
+  youtubeUrl: string,
+  language?: string,
+): Promise<TranscriptionPayload> {
+  return apiFetch<TranscriptionPayload>('/ai/transcribe-youtube', {
+    method: 'POST',
+    body: JSON.stringify({ youtubeUrl, language }),
   })
-
-  if (error) {
-    throw new Error(getInvokeError(data, error))
-  }
-
-  if (data && typeof data === 'object' && 'error' in data) {
-    throw new Error(getInvokeError(data, null))
-  }
-
-  const text = typeof data?.text === 'string' ? data.text.trim() : ''
-  if (!text) {
-    throw new Error('No readable text found in this PDF.')
-  }
-
-  return {
-    text,
-    pageCount: typeof data?.pageCount === 'number' ? data.pageCount : null,
-  }
 }
 
-export { AI_UNAVAILABLE_MESSAGE }
+export async function invokeExtractPdfText(
+  pdfUrl: string,
+): Promise<{ text: string; pageCount: number | null }> {
+  return apiFetch<{ text: string; pageCount: number | null }>('/ai/extract-pdf', {
+    method: 'POST',
+    body: JSON.stringify({ pdfUrl }),
+  })
+}
+
+export const AI_UNAVAILABLE_MESSAGE = 'AI service is currently unavailable.'

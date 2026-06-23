@@ -1,8 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { ArrowLeft, RefreshCw } from 'lucide-react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { FadeUp } from '@/components/effects/FadeUp'
-import { NotesAIActionsPanel } from '@/components/notes/NotesAIActionsPanel'
 import { NotesEmptyState } from '@/components/notes/NotesEmptyState'
 import { NotesGeneratingState } from '@/components/notes/NotesGeneratingState'
 import { NotesNavigation } from '@/components/notes/NotesNavigation'
@@ -11,12 +10,16 @@ import { useLectureNotes } from '@/hooks/useLectureNotes'
 import { useLectures } from '@/hooks/useLectures'
 import type { NoteSectionId } from '@/types/notes'
 import { getLectureMediaKind } from '@/lib/lectureFilters'
+import { dashboardPageTitleClass } from '@/components/dashboard/ui/DashboardPageShell'
+import { useToast } from '@/components/ui/ToastProvider'
+import { recordStudySession } from '@/services/streakService'
 import { cn } from '@/lib/utils'
 
 export function LectureNotesPage() {
   const { lectureId } = useParams<{ lectureId: string }>()
   const { lectures, loading: lecturesLoading } = useLectures()
   const [activeSection, setActiveSection] = useState<NoteSectionId>('summary')
+  const { toast } = useToast()
 
   const lecture = useMemo(
     () => lectures.find((item) => item.id === lectureId),
@@ -52,12 +55,53 @@ export function LectureNotesPage() {
   }
 
   const showNotes = phase === 'completed' && notes?.content
+
+  // Track 5 minutes session time
+  useEffect(() => {
+    if (!showNotes || !lectureId) return
+
+    const STORAGE_TIME_KEY = `lecturepulse:session-time:${lectureId}`
+    const STORAGE_LOGGED_KEY = `lecturepulse:session-logged:${lectureId}:${new Date().toDateString()}`
+
+    // If already logged today, do nothing
+    if (localStorage.getItem(STORAGE_LOGGED_KEY) === 'true') {
+      return
+    }
+
+    let seconds = Number(localStorage.getItem(STORAGE_TIME_KEY)) || 0
+
+    const interval = setInterval(() => {
+      if (document.visibilityState !== 'visible') return
+
+      seconds += 1
+      localStorage.setItem(STORAGE_TIME_KEY, String(seconds))
+
+      if (seconds >= 300) {
+        clearInterval(interval)
+        localStorage.setItem(STORAGE_LOGGED_KEY, 'true')
+        localStorage.removeItem(STORAGE_TIME_KEY) // clean up
+
+        void recordStudySession(lectureId, seconds)
+          .then((res) => {
+            if (res.success) {
+              toast.success('🔥 Study session logged! Your daily streak is protected.')
+            }
+          })
+          .catch((err) => {
+            console.error('Failed to log study session:', err)
+          })
+      }
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [showNotes, lectureId, toast])
+
   const showGenerating = isGenerating || isExtracting
   const showEmpty =
     !showNotes && !showGenerating && !isLoading && (phase === 'failed' || !canGenerate)
 
   return (
-    <div className="mx-auto w-full max-w-[1600px]">
+    <div className="mx-auto w-full max-w-[1600px] px-4 md:px-6 py-6">
       <FadeUp>
         <Link
           to="/dashboard/lectures"
@@ -77,13 +121,13 @@ export function LectureNotesPage() {
             <p className="text-[10px] font-semibold tracking-[0.22em] uppercase text-accent/80">
               Smart Notes
             </p>
-            <h1 className="mt-1 font-heading text-3xl text-foreground md:text-4xl">
+            <h1 className={cn('mt-1', dashboardPageTitleClass)}>
               {lecture?.title ?? 'Lecture Notes'}
             </h1>
             <p className="mt-2 text-sm text-muted">
               {isPdf
                 ? 'AI-generated study material from your PDF'
-                : 'AI-generated study material from your transcript'}
+                : 'AI-generated study material from your lecture'}
             </p>
           </div>
 
@@ -105,12 +149,13 @@ export function LectureNotesPage() {
         </div>
       </FadeUp>
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[240px_minmax(0,1fr)_280px]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[260px_1fr]">
         <FadeUp delay={0.06}>
           <NotesNavigation
             activeSection={activeSection}
             onSectionChange={setActiveSection}
-            className="xl:sticky xl:top-24 xl:self-start"
+            notesContent={showNotes ? notes.content : null}
+            className="lg:sticky lg:top-24 lg:self-start"
           />
         </FadeUp>
 
@@ -135,6 +180,8 @@ export function LectureNotesPage() {
                   content={notes.content}
                   transcriptText={transcriptText}
                   lectureId={lectureId}
+                  lectureTitle={lecture?.title ?? ''}
+                  subject={lecture?.subject}
                 />
               ) : showEmpty ? (
                 <NotesEmptyState
@@ -149,15 +196,6 @@ export function LectureNotesPage() {
               ) : null}
             </div>
           </section>
-        </FadeUp>
-
-        <FadeUp delay={0.14}>
-          <NotesAIActionsPanel
-            lectureId={lectureId}
-            transcriptText={transcriptText}
-            notesContent={showNotes ? notes.content : null}
-            className="xl:sticky xl:top-24 xl:self-start"
-          />
         </FadeUp>
       </div>
     </div>

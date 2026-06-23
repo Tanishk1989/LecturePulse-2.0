@@ -1,9 +1,6 @@
-import { isSupabaseConfigured, supabase } from '@/lib/supabase'
 import {
-  extractStoragePathFromUrl,
   getPublicStorageUrl,
   getStorageBucketForMediaKind,
-  removeStorageObject,
   uploadFileWithProgress,
 } from '@/lib/storageUpload'
 import type {
@@ -13,6 +10,8 @@ import type {
   UploadLectureInput,
 } from '@/types/lecture'
 import { mapRowToLecture } from '@/types/lecture'
+import { extractAudioToWav } from '@/lib/uploadUtils'
+import { apiFetch } from '@/lib/api'
 
 function getExtension(mediaKind: string, mimeType?: string, filename?: string): string {
   if (filename?.includes('.')) {
@@ -29,53 +28,62 @@ function getExtension(mediaKind: string, mimeType?: string, filename?: string): 
 }
 
 export function isStorageConfigured(): boolean {
-  return isSupabaseConfigured
+  return true
 }
 
 export async function uploadLecture(
   input: UploadLectureInput,
   onProgress?: (percent: number) => void,
 ): Promise<LectureRecording> {
-  if (!supabase) {
-    throw new Error('Storage unavailable. Check your Supabase configuration.')
-  }
-
   const lectureId = crypto.randomUUID()
-  const ext = getExtension(
-    input.mediaKind,
-    input.mimeType ?? (input.file instanceof File ? input.file.type : undefined),
+  let fileToUpload = input.file
+  let mediaKind = input.mediaKind
+  let mimeType = input.mimeType ?? (input.file instanceof File ? input.file.type : undefined)
+  let ext = getExtension(
+    mediaKind,
+    mimeType,
     input.originalFilename ?? (input.file instanceof File ? input.file.name : undefined),
   )
-  const bucket = getStorageBucketForMediaKind(input.mediaKind)
+
+  if (mediaKind === 'audio' || mediaKind === 'video') {
+    try {
+      const audioBlob = await extractAudioToWav(input.file)
+      fileToUpload = new File([audioBlob], 'audio.wav', { type: 'audio/wav' })
+      mediaKind = 'audio'
+      mimeType = 'audio/wav'
+      ext = 'wav'
+    } catch (e) {
+      console.warn('Client-side audio extraction failed, uploading original file:', e)
+    }
+  }
+
+  const bucket = getStorageBucketForMediaKind(mediaKind)
   const storagePath = `${input.userId}/${lectureId}.${ext}`
-  const contentType =
-    input.mimeType ??
-    (input.file instanceof File ? input.file.type : undefined) ??
-    undefined
+  const contentType = mimeType ?? undefined
 
   try {
-    await uploadFileWithProgress(bucket, storagePath, input.file, contentType, onProgress)
+    await uploadFileWithProgress(bucket, storagePath, fileToUpload, contentType, onProgress)
   } catch (error) {
-    await removeStorageObject(bucket, storagePath).catch(() => undefined)
     throw error instanceof Error ? error : new Error('Upload failed.')
   }
 
-  const fileUrl = getPublicStorageUrl(bucket, storagePath)
+  const fileUrl = await getPublicStorageUrl(bucket, storagePath)
 
   return createLecture({
     id: lectureId,
     userId: input.userId,
     title: input.title,
-    fileType: input.mediaKind,
+    fileType: mediaKind,
     fileUrl,
     duration: input.duration > 0 ? input.duration : null,
     status: 'uploaded',
     source: input.source ?? 'upload',
     mimeType: contentType,
-    fileSize: input.file.size,
+    fileSize: fileToUpload.size,
     pageCount: input.pageCount,
     originalFilename:
       input.originalFilename ?? (input.file instanceof File ? input.file.name : undefined),
+    subject: input.subject,
   })
 }
 
@@ -85,6 +93,7 @@ export async function importYouTubeLecture(input: {
   title: string
   duration?: number | null
   thumbnail?: string | null
+  subject?: string
 }): Promise<LectureRecording> {
   return createLecture({
     userId: input.userId,
@@ -94,6 +103,7 @@ export async function importYouTubeLecture(input: {
     duration: input.duration ?? null,
     status: 'uploaded',
     source: 'youtube',
+    subject: input.subject,
   }).then((lecture) => ({
     ...lecture,
     thumbnail: input.thumbnail ?? null,
@@ -101,29 +111,22 @@ export async function importYouTubeLecture(input: {
 }
 
 export async function createLecture(input: CreateLectureInput): Promise<LectureRecording> {
-  if (!supabase) {
-    throw new Error('Storage unavailable. Check your Supabase configuration.')
-  }
-
   const payload = {
-    ...(input.id ? { id: input.id } : {}),
-    user_id: input.userId,
+    id: input.id,
     title: input.title,
-    file_type: input.fileType,
-    file_url: input.fileUrl,
+    fileType: input.fileType,
+    fileUrl: input.fileUrl,
     duration: input.duration,
-    status: input.status ?? 'uploaded',
-    favorite: false,
     source: input.source ?? 'upload',
+    subject: input.subject,
   }
 
-  const { data, error } = await supabase.from('lectures').insert(payload).select('*').single()
+  const data = await apiFetch<LectureRow>('/lectures', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
 
-  if (error) {
-    throw new Error(error.message || 'Failed to save lecture metadata.')
-  }
-
-  const lecture = mapRowToLecture(data as LectureRow)
+  const lecture = mapRowToLecture(data)
 
   return {
     ...lecture,
@@ -135,55 +138,14 @@ export async function createLecture(input: CreateLectureInput): Promise<LectureR
 }
 
 export async function getUserLectures(userId: string): Promise<LectureRecording[]> {
-  if (!supabase) {
-    return []
-  }
-
-  const { data, error } = await supabase
-    .from('lectures')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-
-  if (error) {
-    throw new Error(error.message || 'Failed to load lectures.')
-  }
-
-  return (data as LectureRow[]).map(mapRowToLecture)
+  const data = await apiFetch<LectureRow[]>('/lectures')
+  return data.map(mapRowToLecture)
 }
 
 export async function deleteLecture(userId: string, lectureId: string): Promise<void> {
-  if (!supabase) {
-    return
-  }
-
-  const { data: lecture, error: fetchError } = await supabase
-    .from('lectures')
-    .select('file_url')
-    .eq('id', lectureId)
-    .eq('user_id', userId)
-    .single()
-
-  if (fetchError) {
-    throw new Error(fetchError.message || 'Failed to delete lecture.')
-  }
-
-  const fileUrl = (lecture as { file_url: string }).file_url
-  const storageLocation = extractStoragePathFromUrl(fileUrl)
-
-  if (storageLocation) {
-    await removeStorageObject(storageLocation.bucket, storageLocation.path)
-  }
-
-  const { error } = await supabase
-    .from('lectures')
-    .delete()
-    .eq('id', lectureId)
-    .eq('user_id', userId)
-
-  if (error) {
-    throw new Error(error.message || 'Failed to delete lecture.')
-  }
+  await apiFetch<void>(`/lectures/${lectureId}`, {
+    method: 'DELETE',
+  })
 }
 
 export async function toggleFavorite(
@@ -191,23 +153,11 @@ export async function toggleFavorite(
   lectureId: string,
   favorite: boolean,
 ): Promise<LectureRecording> {
-  if (!supabase) {
-    throw new Error('Storage unavailable. Check your Supabase configuration.')
-  }
-
-  const { data, error } = await supabase
-    .from('lectures')
-    .update({ favorite })
-    .eq('id', lectureId)
-    .eq('user_id', userId)
-    .select('*')
-    .single()
-
-  if (error) {
-    throw new Error(error.message || 'Failed to update favorite.')
-  }
-
-  return mapRowToLecture(data as LectureRow)
+  const data = await apiFetch<LectureRow>(`/lectures/${lectureId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ favorite }),
+  })
+  return mapRowToLecture(data)
 }
 
 export async function updateLecture(
@@ -215,25 +165,9 @@ export async function updateLecture(
   lectureId: string,
   updates: { title?: string; status?: LectureRow['status'] },
 ): Promise<LectureRecording> {
-  if (!supabase) {
-    throw new Error('Storage unavailable. Check your Supabase configuration.')
-  }
-
-  const payload: Record<string, string> = {}
-  if (updates.title !== undefined) payload.title = updates.title.trim()
-  if (updates.status !== undefined) payload.status = updates.status
-
-  const { data, error } = await supabase
-    .from('lectures')
-    .update(payload)
-    .eq('id', lectureId)
-    .eq('user_id', userId)
-    .select('*')
-    .single()
-
-  if (error) {
-    throw new Error(error.message || 'Failed to update lecture.')
-  }
-
-  return mapRowToLecture(data as LectureRow)
+  const data = await apiFetch<LectureRow>(`/lectures/${lectureId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  })
+  return mapRowToLecture(data)
 }

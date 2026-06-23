@@ -51,18 +51,30 @@ export interface CreateTranscriptInput {
 }
 
 export function mapRowToTranscript(row: TranscriptRow): Transcript {
+  const record = row as TranscriptRow & {
+    lectureId?: string
+    userId?: string
+    fullText?: string
+    durationSeconds?: number | null
+    errorMessage?: string | null
+    createdAt?: string
+    updatedAt?: string
+  }
+
+  const text = row.full_text ?? record.fullText ?? ''
+
   return {
     id: row.id,
-    lectureId: row.lecture_id,
-    userId: row.user_id,
-    text: row.full_text,
-    fullText: row.full_text,
+    lectureId: row.lecture_id ?? record.lectureId ?? '',
+    userId: row.user_id ?? record.userId ?? '',
+    text,
+    fullText: text,
     language: row.language,
-    durationSeconds: row.duration_seconds,
+    durationSeconds: row.duration_seconds ?? record.durationSeconds ?? null,
     segments: Array.isArray(row.segments) ? row.segments : [],
     status: row.status as TranscriptStatus,
-    errorMessage: row.error_message,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    errorMessage: row.error_message ?? record.errorMessage ?? null,
+    createdAt: row.created_at ?? record.createdAt ?? '',
+    updatedAt: row.updated_at ?? record.updatedAt ?? '',
   }
 }

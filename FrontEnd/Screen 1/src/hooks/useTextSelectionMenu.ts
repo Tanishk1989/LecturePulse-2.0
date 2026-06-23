@@ -23,7 +23,7 @@ export function useTextSelectionMenu(containerRef: RefObject<HTMLElement | null>
     }
 
     const text = nativeSelection.toString().trim()
-    if (!text) {
+    if (!text || text.length < 2) {
       setSelection(null)
       return
     }
@@ -46,21 +46,34 @@ export function useTextSelectionMenu(containerRef: RefObject<HTMLElement | null>
   }, [containerRef])
 
   useEffect(() => {
-    document.addEventListener('mouseup', handleSelection)
+    const onMouseUp = () => {
+      requestAnimationFrame(handleSelection)
+    }
+
+    document.addEventListener('mouseup', onMouseUp)
+    document.addEventListener('touchend', onMouseUp)
     document.addEventListener('keyup', handleSelection)
 
-    const onMouseDown = (event: MouseEvent) => {
-      const target = event.target as Node
+    const onScroll = () => setSelection(null)
+    window.addEventListener('scroll', onScroll, true)
+
+    const onMouseDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as HTMLElement
+      if (target.closest('[data-transcript-toolbar]')) return
       if (containerRef.current?.contains(target)) return
       setSelection(null)
     }
 
     document.addEventListener('mousedown', onMouseDown)
+    document.addEventListener('touchstart', onMouseDown)
 
     return () => {
-      document.removeEventListener('mouseup', handleSelection)
+      document.removeEventListener('mouseup', onMouseUp)
+      document.removeEventListener('touchend', onMouseUp)
       document.removeEventListener('keyup', handleSelection)
+      window.removeEventListener('scroll', onScroll, true)
       document.removeEventListener('mousedown', onMouseDown)
+      document.removeEventListener('touchstart', onMouseDown)
     }
   }, [containerRef, handleSelection])
 

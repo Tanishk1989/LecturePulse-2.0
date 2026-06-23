@@ -19,7 +19,7 @@ export function ViewAllTasksButton({
       className={cn(
         'flex w-full items-center justify-center gap-2 rounded-xl border border-white/[0.08]',
         'bg-[#0a0a0a]/80 py-3 text-sm font-medium text-accent',
-        'hover:border-accent/25 hover:bg-accent/[0.04] hover:shadow-[0_0_24px_rgba(214,162,11,0.08)]',
+        'hover:border-accent/25 hover:bg-accent/[0.04] hover:shadow-[0_0_24px_rgba(var(--color-accent-rgb),0.08)]',
         'transition-all duration-300 cursor-pointer',
         className,
       )}

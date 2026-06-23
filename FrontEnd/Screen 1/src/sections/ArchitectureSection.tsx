@@ -30,12 +30,12 @@ const pipeline = [
     label: 'Whisper AI',
     icon: Mic,
     color: '#EF4444',
-    hint: 'Real-time speech-to-text transcription',
+    hint: 'Real-time speech-to-text capture',
     live: true,
   },
   {
-    id: 'transcript',
-    label: 'Transcript',
+    id: 'lecture-text',
+    label: 'Lecture Text',
     icon: BookOpen,
     color: '#A1A1AA',
     hint: 'Structured, timestamped lecture text',
@@ -114,7 +114,7 @@ function PipelineStep({
         'floating-card glow-hover rounded-xl px-4 py-3 flex flex-col items-center text-center min-w-[120px] lg:min-w-[130px] shrink-0 cursor-pointer',
         step.id === 'whisper' && 'border-red/20',
         step.id === 'llm' && 'border-[#4F46E5]/25',
-        isHovered && 'border-accent/30 shadow-[0_0_40px_rgba(214,162,11,0.12)]',
+        isHovered && 'border-accent/30 shadow-[0_0_40px_rgba(var(--color-accent-rgb),0.12)]',
       )}
       onMouseEnter={() => onHover(step.id)}
       onMouseLeave={() => onHover(null)}
@@ -248,7 +248,7 @@ export function ArchitectureSection() {
 
           <div className="absolute -right-8 top-1/4 hidden xl:block opacity-20 pointer-events-none">
             <svg width="80" height="80" viewBox="0 0 80 80" aria-hidden>
-              <circle cx="40" cy="40" r="30" stroke="#D6A20B" strokeWidth="0.5" fill="none" opacity="0.5" />
+              <circle cx="40" cy="40" r="30" stroke="var(--color-accent)" strokeWidth="0.5" fill="none" opacity="0.5" />
               <circle cx="40" cy="40" r="20" stroke="#4F46E5" strokeWidth="0.5" fill="none" />
               {[0, 60, 120, 180, 240, 300].map((deg) => (
                 <line
@@ -257,7 +257,7 @@ export function ArchitectureSection() {
                   y1="40"
                   x2={40 + 28 * Math.cos((deg * Math.PI) / 180)}
                   y2={40 + 28 * Math.sin((deg * Math.PI) / 180)}
-                  stroke="#D6A20B"
+                  stroke="var(--color-accent)"
                   strokeWidth="0.5"
                   opacity="0.4"
                 />

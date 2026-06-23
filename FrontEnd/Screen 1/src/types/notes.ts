@@ -4,9 +4,11 @@ export type NoteSectionId =
   | 'summary'
   | 'concepts'
   | 'definitions'
-  | 'examples'
+  | 'mind-map'
   | 'questions'
   | 'exam-tips'
+  | 'flashcards'
+  | 'ask-ai'
 
 export interface KeyConcept {
   title: string
@@ -40,12 +42,26 @@ export interface ExamTips {
   topicsToRevise: string[]
 }
 
+export interface MindMapNode {
+  id: string
+  label: string
+  parentId: string | null
+  level: number
+  elaboration?: string
+}
+
+export interface MindMapData {
+  root: { id: string; label: string }
+  nodes: MindMapNode[]
+}
+
 export interface StructuredNotesContent {
   summary: string
   keyConcepts: KeyConcept[]
   importantPoints: string[]
   definitions: Definition[]
-  examples: NoteExample[]
+  examples?: NoteExample[]
+  mindMap?: MindMapData | null
   questions: StudyQuestion[]
   examTips: ExamTips
 }
@@ -58,7 +74,8 @@ export interface LectureNotesRow {
   key_concepts: KeyConcept[]
   important_points: string[]
   definitions: Definition[]
-  examples: NoteExample[]
+  examples?: NoteExample[]
+  mind_map?: MindMapData | null
   questions: StudyQuestion[]
   exam_tips: ExamTips
   status: NotesStatus
@@ -88,9 +105,9 @@ export interface CreateNotesInput {
 
 export const NOTE_SECTIONS: { id: NoteSectionId; label: string }[] = [
   { id: 'summary', label: 'Summary' },
-  { id: 'concepts', label: 'Concepts' },
+  { id: 'concepts', label: 'Notes' },
   { id: 'definitions', label: 'Definitions' },
-  { id: 'examples', label: 'Examples' },
+  { id: 'mind-map', label: 'Mind Map' },
   { id: 'questions', label: 'Questions' },
   { id: 'exam-tips', label: 'Exam Tips' },
 ]
@@ -108,23 +125,42 @@ export function emptyStructuredNotes(): StructuredNotesContent {
     importantPoints: [],
     definitions: [],
     examples: [],
+    mindMap: null,
     questions: [],
     examTips: EMPTY_EXAM_TIPS,
   }
 }
 
 export function mapRowToNotes(row: LectureNotesRow): LectureNotes {
-  const examTips = row.exam_tips ?? EMPTY_EXAM_TIPS
+  const record = row as LectureNotesRow & {
+    lectureId?: string
+    userId?: string
+    keyConcepts?: KeyConcept[]
+    importantPoints?: string[]
+    mindMap?: MindMapData | null
+    examTips?: ExamTips
+    errorMessage?: string | null
+    createdAt?: string
+    updatedAt?: string
+  }
+
+  const examTips = row.exam_tips ?? record.examTips ?? EMPTY_EXAM_TIPS
+
   return {
     id: row.id,
-    lectureId: row.lecture_id,
-    userId: row.user_id,
+    lectureId: row.lecture_id ?? record.lectureId ?? '',
+    userId: row.user_id ?? record.userId ?? '',
     content: {
       summary: row.summary ?? '',
-      keyConcepts: Array.isArray(row.key_concepts) ? row.key_concepts : [],
-      importantPoints: Array.isArray(row.important_points) ? row.important_points : [],
+      keyConcepts: Array.isArray(row.key_concepts)
+        ? row.key_concepts
+        : (record.keyConcepts ?? []),
+      importantPoints: Array.isArray(row.important_points)
+        ? row.important_points
+        : (record.importantPoints ?? []),
       definitions: Array.isArray(row.definitions) ? row.definitions : [],
       examples: Array.isArray(row.examples) ? row.examples : [],
+      mindMap: row.mind_map ?? record.mindMap ?? null,
       questions: Array.isArray(row.questions) ? row.questions : [],
       examTips: {
         mostImportant: Array.isArray(examTips.mostImportant) ? examTips.mostImportant : [],
@@ -133,8 +169,8 @@ export function mapRowToNotes(row: LectureNotesRow): LectureNotes {
       },
     },
     status: row.status,
-    errorMessage: row.error_message,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    errorMessage: row.error_message ?? record.errorMessage ?? null,
+    createdAt: row.created_at ?? record.createdAt ?? '',
+    updatedAt: row.updated_at ?? record.updatedAt ?? '',
   }
 }

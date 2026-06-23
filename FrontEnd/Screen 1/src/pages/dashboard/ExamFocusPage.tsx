@@ -28,7 +28,7 @@ function ExamFocusBackground() {
             y1="0%"
             x2={`${28 + i * 8}%`}
             y2="100%"
-            stroke="rgba(214,162,11,0.35)"
+            stroke="rgba(var(--color-accent-rgb),0.35)"
             strokeWidth="1"
             animate={prefersReducedMotion ? {} : { opacity: [0.1, 0.45, 0.1] }}
             transition={{ duration: 3.5 + i * 0.35, repeat: Infinity, delay: i * 0.2 }}
@@ -78,7 +78,7 @@ export function ExamFocusPage() {
               <motion.div
                 animate={{ y: [0, -6, 0] }}
                 transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-                className="flex h-28 w-28 items-center justify-center rounded-3xl border border-accent/25 bg-accent/[0.08] shadow-[0_0_60px_rgba(214,162,11,0.15)]"
+                className="flex h-28 w-28 items-center justify-center rounded-3xl border border-accent/25 bg-accent/[0.08] shadow-[0_0_60px_rgba(var(--color-accent-rgb),0.15)]"
               >
                 <Target className="h-14 w-14 text-accent" strokeWidth={1.5} />
               </motion.div>
@@ -119,7 +119,7 @@ export function ExamFocusPage() {
                       to="/dashboard/upload"
                       className={cn(
                         'mt-6 inline-flex self-start items-center rounded-xl bg-accent px-6 py-3 text-sm font-medium text-background',
-                        'shadow-[0_0_24px_rgba(214,162,11,0.2)] hover:bg-accent-soft hover:-translate-y-0.5',
+                        'shadow-[0_0_24px_rgba(var(--color-accent-rgb),0.2)] hover:bg-accent-soft hover:-translate-y-0.5',
                         'transition-all duration-300 cursor-pointer',
                       )}
                     >

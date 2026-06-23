@@ -38,7 +38,7 @@ export function TranscriptLoadingState({ className }: { className?: string }) {
         transition={{ delay: 0.2 }}
         className="mt-2 text-sm text-muted"
       >
-        Whisper is transcribing your lecture
+        This usually takes a minute or two
       </motion.p>
 
       <div className="mt-10 w-full max-w-lg space-y-3">

@@ -10,10 +10,12 @@ export interface UseMediaRecorderOptions {
   /** MediaRecorder timeslice in ms — emits `onChunk` per slice when set */
   chunkIntervalMs?: number
   onChunk?: (blob: Blob, chunkIndex: number) => void
+  /** Keep the mic stream open after stop so recording can restart without re-prompting */
+  keepStreamOnStop?: boolean
 }
 
 export function useMediaRecorder(options: UseMediaRecorderOptions = {}) {
-  const { chunkIntervalMs = 250, onChunk } = options
+  const { chunkIntervalMs = 250, onChunk, keepStreamOnStop = false } = options
   const [permission, setPermission] = useState<MicPermission>('pending')
   const [status, setStatus] = useState<RecordingStatus>('idle')
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
@@ -33,6 +35,12 @@ export function useMediaRecorder(options: UseMediaRecorderOptions = {}) {
   const chunkIndexRef = useRef(0)
   const onChunkRef = useRef(onChunk)
   const isStoppingRef = useRef(false)
+  const blobResolverRef = useRef<((blob: Blob | null) => void) | null>(null)
+  const keepStreamOnStopRef = useRef(keepStreamOnStop)
+
+  useEffect(() => {
+    keepStreamOnStopRef.current = keepStreamOnStop
+  }, [keepStreamOnStop])
 
   useEffect(() => {
     statusRef.current = status
@@ -127,7 +135,14 @@ export function useMediaRecorder(options: UseMediaRecorderOptions = {}) {
     setPermission('pending')
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 16000,
+        },
+      })
       streamRef.current = stream
       setupAnalyser(stream)
       setPermission('granted')
@@ -164,8 +179,20 @@ export function useMediaRecorder(options: UseMediaRecorderOptions = {}) {
     recorder.onstop = () => {
       const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' })
       setAudioBlob(blob)
-      setAudioUrl(URL.createObjectURL(blob))
-      cleanupStream()
+      setAudioUrl((prev) => {
+        if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
+        return URL.createObjectURL(blob)
+      })
+
+      blobResolverRef.current?.(blob.size > 0 ? blob : null)
+      blobResolverRef.current = null
+
+      if (keepStreamOnStopRef.current) {
+        mediaRecorderRef.current = null
+        setStatus('idle')
+      } else {
+        cleanupStream()
+      }
     }
 
     mediaRecorderRef.current = recorder
@@ -200,12 +227,28 @@ export function useMediaRecorder(options: UseMediaRecorderOptions = {}) {
     if (recorder && recorder.state !== 'inactive') {
       isStoppingRef.current = true
       recorder.stop()
-    } else {
+    } else if (!keepStreamOnStopRef.current) {
       cleanupStream()
     }
     stopTimer()
-    setStatus('stopped')
+    if (!keepStreamOnStopRef.current) {
+      setStatus('stopped')
+    }
   }, [cleanupStream, stopTimer])
+
+  const stopRecordingAndGetBlob = useCallback((): Promise<Blob | null> => {
+    const recorder = mediaRecorderRef.current
+    if (!recorder || recorder.state === 'inactive') {
+      return Promise.resolve(null)
+    }
+
+    return new Promise((resolve) => {
+      blobResolverRef.current = resolve
+      isStoppingRef.current = true
+      recorder.stop()
+      stopTimer()
+    })
+  }, [stopTimer])
 
   const reset = useCallback(() => {
     if (audioUrl?.startsWith('blob:')) {
@@ -235,6 +278,7 @@ export function useMediaRecorder(options: UseMediaRecorderOptions = {}) {
     pauseRecording,
     resumeRecording,
     stopRecording,
+    stopRecordingAndGetBlob,
     reset,
   }
 }

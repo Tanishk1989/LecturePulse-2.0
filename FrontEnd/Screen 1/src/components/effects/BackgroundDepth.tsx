@@ -12,8 +12,8 @@ export function BackgroundDepth({ className, variant = 'section' }: BackgroundDe
 
       {variant === 'hero' && (
         <>
-          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 h-[700px] w-[700px] rounded-full bg-[#D6A20B]/[0.10] blur-[160px]" />
-          <div className="absolute top-1/4 right-1/4 h-[400px] w-[400px] rounded-full bg-[#D6A20B]/[0.06] blur-[100px]" />
+          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 h-[700px] w-[700px] rounded-full bg-[var(--color-accent)]/[0.10] blur-[160px]" />
+          <div className="absolute top-1/4 right-1/4 h-[400px] w-[400px] rounded-full bg-[var(--color-accent)]/[0.06] blur-[100px]" />
           <div className="absolute bottom-1/4 left-1/4 h-[350px] w-[350px] rounded-full bg-[#4F46E5]/[0.06] blur-[90px]" />
         </>
       )}
@@ -34,8 +34,8 @@ export function BackgroundDepth({ className, variant = 'section' }: BackgroundDe
 
       {variant === 'cta' && (
         <>
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[700px] w-[700px] rounded-full bg-[#D6A20B]/[0.10] blur-[140px]" />
-          <div className="absolute top-1/3 right-1/3 h-[400px] w-[400px] rounded-full bg-[#D6A20B]/[0.06] blur-[100px]" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[700px] w-[700px] rounded-full bg-[var(--color-accent)]/[0.10] blur-[140px]" />
+          <div className="absolute top-1/3 right-1/3 h-[400px] w-[400px] rounded-full bg-[var(--color-accent)]/[0.06] blur-[100px]" />
         </>
       )}
 

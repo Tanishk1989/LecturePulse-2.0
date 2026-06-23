@@ -99,7 +99,7 @@ function TranscriptCard() {
           <span className="text-base" aria-hidden>
             🎤
           </span>
-          <span className="text-xs font-semibold text-foreground">Live Transcript</span>
+          <span className="text-xs font-semibold text-foreground">Live Captions</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="relative flex h-1.5 w-1.5">
@@ -135,7 +135,7 @@ function KnowledgeGraphCard() {
               className={cn(
                 'rounded-lg border px-3 py-1 text-[10px] font-medium',
                 i === 0
-                  ? 'border-accent/30 bg-accent/[0.08] text-accent shadow-[0_0_12px_rgba(214,162,11,0.15)]'
+                  ? 'border-accent/30 bg-accent/[0.08] text-accent shadow-[0_0_12px_rgba(var(--color-accent-rgb),0.15)]'
                   : 'border-white/[0.08] bg-white/[0.03] text-muted',
               )}
             >

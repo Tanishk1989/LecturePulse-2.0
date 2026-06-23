@@ -6,7 +6,6 @@ const firebaseConfig = {
   apiKey: 'AIzaSyABvgYHF0HC0Hd4bcnlbTlHaZa1zW5mUgs',
   authDomain: 'lecturepulse-f0489.firebaseapp.com',
   projectId: 'lecturepulse-f0489',
-  storageBucket: 'lecturepulse-f0489.firebasestorage.app',
   messagingSenderId: '205218040801',
   appId: '1:205218040801:web:bc3a6ac5f524100b9aa0a0',
   measurementId: 'G-7RE2JH2YRY',

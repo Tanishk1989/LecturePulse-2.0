@@ -28,16 +28,16 @@ const steps = [
     title: 'Context Engine',
     tech: 'AI Orchestration',
     description:
-      'Multi-model AI orchestration handles live token transcription, semantic parsing, and structured JSON extraction from raw speech.',
+      'Multi-model AI orchestration handles live speech capture, semantic parsing, and structured JSON extraction from raw audio.',
     icon: Cpu,
-    accent: '#D6A20B',
+    accent: 'var(--color-accent)',
   },
   {
     step: '04',
     title: 'Persistence',
     tech: 'Supabase PostgreSQL',
     description:
-      'Transcripts, definitions, flashcards, and knowledge graph nodes securely indexed in Supabase PostgreSQL with row-level security.',
+      'Lecture text, definitions, flashcards, and knowledge graph nodes securely indexed in Supabase PostgreSQL with row-level security.',
     icon: Database,
     accent: '#10B981',
   },

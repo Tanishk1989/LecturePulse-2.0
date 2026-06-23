@@ -25,7 +25,7 @@ export function RecordingControls({ status, onPause, onResume, onStop }: Recordi
           className={cn(
             controlBase,
             'border-accent/30 bg-accent/[0.08] text-accent',
-            'hover:border-accent/45 hover:shadow-[0_0_28px_rgba(214,162,11,0.22)]',
+            'hover:border-accent/45 hover:shadow-[0_0_28px_rgba(var(--color-accent-rgb),0.22)]',
           )}
         >
           <Pause className="h-5 w-5" strokeWidth={2} />

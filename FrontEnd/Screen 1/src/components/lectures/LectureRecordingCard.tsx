@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { FileText, Mic, Pause, Pencil, Play, Trash2, Upload } from 'lucide-react'
 import { formatDuration, formatRelativeDate } from '@/lib/formatDuration'
 import { formatFileSize } from '@/lib/uploadUtils'
+import { getLectureStatusLabel, getLectureStatusStyles } from '@/lib/lectureStatus'
 import type { LectureRecording } from '@/types/lecture'
 import { cn } from '@/lib/utils'
 
@@ -23,24 +24,15 @@ function SourceIcon({ recording }: { recording: LectureRecording }) {
 }
 
 function statusLabel(recording: LectureRecording) {
-  if (recording.source === 'upload' || recording.status === 'processing') {
-    return 'Ready for processing'
-  }
-  return 'Ready'
+  return getLectureStatusLabel(recording)
 }
 
 function statusStyles(recording: LectureRecording) {
-  if (recording.source === 'upload' || recording.status === 'processing') {
-    return 'border-accent/25 bg-accent/[0.08] text-accent'
-  }
-  return 'border-emerald/25 bg-emerald/[0.08] text-emerald'
+  return getLectureStatusStyles(recording).container
 }
 
 function statusDot(recording: LectureRecording) {
-  if (recording.source === 'upload' || recording.status === 'processing') {
-    return 'bg-accent'
-  }
-  return 'bg-emerald'
+  return getLectureStatusStyles(recording).dot
 }
 
 export function LectureRecordingCard({ recording, onDelete, onRename }: LectureRecordingCardProps) {

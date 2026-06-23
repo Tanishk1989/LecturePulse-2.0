@@ -12,8 +12,10 @@ export interface TranscriptAudioEngineHandle {
   togglePlay: () => void
   restart: () => void
   seekTo: (seconds: number) => void
+  seekAndPlay: (seconds: number) => void
   getCurrentTime: () => number
   isPlaying: () => boolean
+  setPlaybackRate: (rate: number) => void
 }
 
 interface TranscriptAudioEngineProps {
@@ -102,14 +104,30 @@ export const TranscriptAudioEngine = forwardRef<
     play()
   }
 
+  const seekAndPlay = (seconds: number) => {
+    const audio = audioRef.current
+    if (!audio) return
+    audio.currentTime = Math.max(0, seconds)
+    onTimeUpdate?.(audio.currentTime)
+    void audio.play()
+  }
+
+  const setPlaybackRate = (rate: number) => {
+    const audio = audioRef.current
+    if (!audio) return
+    audio.playbackRate = rate
+  }
+
   useImperativeHandle(ref, () => ({
     play,
     pause,
     togglePlay,
     restart,
     seekTo,
+    seekAndPlay,
     getCurrentTime: () => audioRef.current?.currentTime ?? 0,
     isPlaying: () => playing,
+    setPlaybackRate,
   }))
 
   return <audio ref={audioRef} src={url} preload="metadata" className="hidden" />

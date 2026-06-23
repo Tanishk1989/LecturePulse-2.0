@@ -29,7 +29,7 @@ export function LectureLibraryEmptyState({ className }: LectureLibraryEmptyState
         className="relative mb-8"
       >
         <div className="absolute inset-0 rounded-full bg-accent/[0.16] blur-[40px]" />
-        <div className="relative flex h-28 w-28 items-center justify-center rounded-[28px] border border-accent/20 bg-accent/[0.06] shadow-[0_0_48px_rgba(214,162,11,0.14)]">
+        <div className="relative flex h-28 w-28 items-center justify-center rounded-[28px] border border-accent/20 bg-accent/[0.06] shadow-[0_0_48px_rgba(var(--color-accent-rgb),0.14)]">
           <BookOpen className="h-12 w-12 text-accent" strokeWidth={1.5} />
         </div>
         <motion.div
@@ -52,7 +52,7 @@ export function LectureLibraryEmptyState({ className }: LectureLibraryEmptyState
         to="/dashboard/upload"
         className={cn(
           'relative mt-8 inline-flex items-center gap-2 rounded-full bg-accent px-7 py-3 text-sm font-medium text-background',
-          'shadow-[0_0_24px_rgba(214,162,11,0.18)] hover:bg-accent-soft hover:-translate-y-0.5 transition-all duration-300 cursor-pointer',
+          'shadow-[0_0_24px_rgba(var(--color-accent-rgb),0.18)] hover:bg-accent-soft hover:-translate-y-0.5 transition-all duration-300 cursor-pointer',
         )}
       >
         <Upload className="h-4 w-4" strokeWidth={2} />

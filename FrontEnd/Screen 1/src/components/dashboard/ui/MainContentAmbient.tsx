@@ -12,7 +12,7 @@ export function MainContentAmbient({ className }: { className?: string }) {
       {/* Top-right indigo blur */}
       <div className="absolute -top-24 -right-24 h-[380px] w-[380px] rounded-full bg-ambient/[0.07] blur-[110px]" />
       {/* Bottom radial glow */}
-      <div className="absolute -bottom-40 left-1/2 -translate-x-1/2 h-[500px] w-[800px] rounded-full bg-[radial-gradient(ellipse,rgba(214,162,11,0.04)_0%,transparent_70%)]" />
+      <div className="absolute -bottom-40 left-1/2 -translate-x-1/2 h-[500px] w-[800px] rounded-full bg-[radial-gradient(ellipse,rgba(var(--color-accent-rgb),0.04)_0%,transparent_70%)]" />
 
       {/* Faint grid */}
       <div

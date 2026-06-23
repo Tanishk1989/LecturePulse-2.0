@@ -45,11 +45,11 @@ export function TranscriptSearchBar({
                 event.shiftKey ? onPreviousMatch() : onNextMatch()
               }
             }}
-            placeholder="Search transcript..."
+            placeholder="Search lecture…"
             className={cn(
               'w-full rounded-full border border-white/[0.08] bg-white/[0.03] py-2.5 pl-11 pr-10',
               'text-sm text-foreground placeholder:text-muted/70 outline-none transition-all',
-              'focus:border-accent/30 focus:bg-white/[0.05] focus:shadow-[0_0_20px_rgba(214,162,11,0.08)]',
+              'focus:border-accent/30 focus:bg-white/[0.05] focus:shadow-[0_0_20px_rgba(var(--color-accent-rgb),0.08)]',
             )}
           />
           {query && (

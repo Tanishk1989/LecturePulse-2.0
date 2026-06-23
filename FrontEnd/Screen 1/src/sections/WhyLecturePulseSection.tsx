@@ -15,7 +15,7 @@ const rows = [
   {
     title: 'AI that understands your lectures',
     description:
-      'LecturePulse transcribes in real time and structures everything — definitions, formulas, key arguments — into clean, searchable notes you can actually study from.',
+      'LecturePulse captures lectures in real time and structures everything — definitions, formulas, key arguments — into clean, searchable notes you can actually study from.',
     illustration: 'notes',
     reverse: true,
   },
@@ -42,7 +42,7 @@ function Illustration({ type }: { type: string }) {
         <div className="absolute inset-0 bg-gradient-to-br from-red/[0.08] to-[#4F46E5]/[0.06]" />
         <div className="absolute top-6 right-6 opacity-30">
           <svg width="48" height="48" viewBox="0 0 48 48" aria-hidden>
-            <path d="M24 4 L26 18 H42 L28 28 L32 44 L24 34 L16 44 L20 28 L6 18 H22 Z" stroke="#D6A20B" strokeWidth="0.5" fill="none" opacity="0.5" />
+            <path d="M24 4 L26 18 H42 L28 28 L32 44 L24 34 L16 44 L20 28 L6 18 H22 Z" stroke="var(--color-accent)" strokeWidth="0.5" fill="none" opacity="0.5" />
           </svg>
         </div>
         <div className="absolute inset-0 flex flex-col items-center justify-center p-8">
@@ -104,8 +104,8 @@ function Illustration({ type }: { type: string }) {
         <div className="absolute inset-0 bg-gradient-to-br from-accent/[0.06] to-transparent" />
         <div className="absolute top-8 left-8 opacity-20">
           <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden>
-            <rect x="8" y="8" width="24" height="24" rx="4" stroke="#D6A20B" strokeWidth="0.5" fill="none" transform="rotate(12 20 20)" />
-            <rect x="12" y="4" width="24" height="24" rx="4" stroke="#D6A20B" strokeWidth="0.5" fill="none" transform="rotate(-8 24 16)" />
+            <rect x="8" y="8" width="24" height="24" rx="4" stroke="var(--color-accent)" strokeWidth="0.5" fill="none" transform="rotate(12 20 20)" />
+            <rect x="12" y="4" width="24" height="24" rx="4" stroke="var(--color-accent)" strokeWidth="0.5" fill="none" transform="rotate(-8 24 16)" />
           </svg>
         </div>
         <div className="p-6 md:p-8 h-full flex items-center justify-center">
@@ -113,7 +113,7 @@ function Illustration({ type }: { type: string }) {
             <div className="floating-card rounded-xl p-6 transform -rotate-2 absolute top-0 left-4 right-4 opacity-40">
               <p className="text-xs text-muted">What is a limit?</p>
             </div>
-            <div className="floating-card rounded-xl p-6 transform rotate-1 relative z-10 border-accent/20 shadow-[0_0_30px_rgba(214,162,11,0.1)]">
+            <div className="floating-card rounded-xl p-6 transform rotate-1 relative z-10 border-accent/20 shadow-[0_0_30px_rgba(var(--color-accent-rgb),0.1)]">
               <p className="text-[10px] uppercase tracking-wider text-accent mb-3">Flashcard</p>
               <p className="text-sm font-medium text-foreground">Define eigenvalue</p>
               <div className="mt-4 pt-4 border-t border-white/[0.06]">

@@ -9,14 +9,14 @@ import { ParticleField } from '@/components/effects/ParticleField'
 
 const connections = [
   { d: 'M200,240 Q160,200 120,160', target: 'flashcard', label: 'Flashcards' },
-  { d: 'M200,240 Q240,200 280,160', target: 'transcript', label: 'Transcript' },
+  { d: 'M200,240 Q240,200 280,160', target: 'captions', label: 'Captions' },
   { d: 'M200,240 Q200,190 200,130', target: 'graph', label: 'Graph' },
   { d: 'M200,240 Q170,210 140,180', target: 'left', label: '' },
   { d: 'M200,240 Q230,210 260,180', target: 'right', label: '' },
 ]
 
 function OpenNotebookVisual() {
-  const prefersReducedMotion = useReducedMotion()
+  const prefersReducedMotion = useReducedMotion() ?? false
 
   return (
     <div className="relative w-full max-w-lg mx-auto h-[300px] md:h-[340px]">
@@ -24,28 +24,32 @@ function OpenNotebookVisual() {
         className="absolute inset-0 rounded-full"
         animate={
           prefersReducedMotion
-            ? {}
-            : {
-                boxShadow: [
-                  '0 0 60px rgba(214,162,11,0.08)',
-                  '0 0 100px rgba(214,162,11,0.12)',
-                  '0 0 60px rgba(214,162,11,0.08)',
-                ],
-              }
+            ? { opacity: 0.1 }
+            : { opacity: [0.08, 0.16, 0.08], scale: [0.97, 1.03, 0.97] }
         }
-        transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+        transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+        style={{
+          background: 'radial-gradient(circle, rgba(var(--color-accent-rgb),0.12) 0%, transparent 68%)',
+        }}
       />
 
-      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 340" aria-hidden>
-        {connections.map((conn, i) => (
+      <svg viewBox="0 0 400 300" className="w-full h-full relative z-10 pointer-events-none">
+        <defs>
+          <linearGradient id="notebookLine" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="var(--color-accent)" stopOpacity="0.45" />
+            <stop offset="60%" stopColor="#EF4444" stopOpacity="0.3" />
+            <stop offset="100%" stopColor="#4F46E5" stopOpacity="0.05" />
+          </linearGradient>
+        </defs>
+
+        {connections.map((c, i) => (
           <motion.path
-            key={conn.target}
-            d={conn.d}
+            key={i}
+            d={c.d}
             fill="none"
-            stroke="#D6A20B"
-            strokeWidth="1.5"
-            strokeOpacity="0.45"
-            initial={{ pathLength: 0 }}
+            stroke="url(#notebookLine)"
+            strokeWidth="1.25"
+            strokeDasharray="4 6"
             animate={
               prefersReducedMotion
                 ? { pathLength: 1, opacity: 0.4 }
@@ -67,7 +71,7 @@ function OpenNotebookVisual() {
             key={i}
             cx={spark.cx}
             cy={spark.cy}
-            r="2"
+            r={2}
             fill="#EF4444"
             animate={
               prefersReducedMotion
@@ -84,7 +88,7 @@ function OpenNotebookVisual() {
       </svg>
 
       <motion.div
-        className="absolute top-[18%] left-[18%] floating-card rounded-lg p-2.5 border-accent/20 shadow-[0_0_20px_rgba(214,162,11,0.1)] cursor-pointer"
+        className="absolute top-[18%] left-[18%] floating-card rounded-lg p-2.5 border-accent/20 shadow-[0_0_20px_rgba(var(--color-accent-rgb),0.1)] cursor-pointer"
         animate={prefersReducedMotion ? {} : { y: [0, -6, 0] }}
         transition={{ duration: 4, repeat: Infinity }}
       >
@@ -98,7 +102,7 @@ function OpenNotebookVisual() {
         transition={{ duration: 4.5, repeat: Infinity, delay: 0.5 }}
       >
         <Mic className="h-3.5 w-3.5 text-red mb-1" />
-        <p className="text-[9px] text-muted">Transcript</p>
+        <p className="text-[9px] text-muted">Captions</p>
       </motion.div>
 
       <motion.div

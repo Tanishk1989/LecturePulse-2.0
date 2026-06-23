@@ -24,7 +24,7 @@ export function NotesGeneratingState({ className }: { className?: string }) {
         <motion.div
           animate={prefersReducedMotion ? {} : { rotate: 360 }}
           transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-          className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-accent/25 bg-accent/[0.08] shadow-[0_0_40px_rgba(214,162,11,0.15)]"
+          className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-accent/25 bg-accent/[0.08] shadow-[0_0_40px_rgba(var(--color-accent-rgb),0.15)]"
         >
           <Sparkles className="h-7 w-7 text-accent" />
         </motion.div>
@@ -32,7 +32,7 @@ export function NotesGeneratingState({ className }: { className?: string }) {
 
       <p className="text-lg font-semibold text-foreground">Creating your smart notes…</p>
       <p className="mt-2 max-w-sm text-sm text-muted leading-relaxed">
-        AI is reading your transcript and building study material
+        AI is reading your lecture and building study material
       </p>
 
       <div className="mt-10 flex items-center gap-2 text-xs text-muted">

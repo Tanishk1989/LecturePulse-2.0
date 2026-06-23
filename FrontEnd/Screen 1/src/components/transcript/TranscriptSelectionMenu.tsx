@@ -1,24 +1,14 @@
+import { useEffect, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
-import {
-  BookmarkPlus,
-  Bot,
-  Brain,
-  MoreHorizontal,
-  Sparkles,
-} from 'lucide-react'
+import { Brain, Check, Copy, Sparkles } from 'lucide-react'
 import type { TextSelectionState } from '@/hooks/useTextSelectionMenu'
 import { cn } from '@/lib/utils'
 
-export type SelectionAction =
-  | 'explain'
-  | 'summarize'
-  | 'flashcards'
-  | 'notes'
-  | 'ask-ai'
+export type SelectionAction = 'explain' | 'flashcards' | 'copy'
 
 interface TranscriptSelectionMenuProps {
   selection: TextSelectionState
-  onAction: (action: SelectionAction, text: string) => void
+  onAction: (action: SelectionAction, text: string) => void | Promise<void>
   onClose: () => void
 }
 
@@ -26,12 +16,11 @@ const ACTIONS: {
   id: SelectionAction
   label: string
   icon: typeof Sparkles
+  accent?: boolean
 }[] = [
-  { id: 'explain', label: 'Explain', icon: Sparkles },
-  { id: 'summarize', label: 'Summarize', icon: Bot },
-  { id: 'flashcards', label: 'Generate Flashcards', icon: Brain },
-  { id: 'notes', label: 'Add to Notes', icon: BookmarkPlus },
-  { id: 'ask-ai', label: 'Ask AI', icon: MoreHorizontal },
+  { id: 'explain', label: 'Explain', icon: Sparkles, accent: true },
+  { id: 'flashcards', label: 'Add to flashcards', icon: Brain, accent: true },
+  { id: 'copy', label: 'Copy', icon: Copy },
 ]
 
 export function TranscriptSelectionMenu({
@@ -40,12 +29,36 @@ export function TranscriptSelectionMenu({
   onClose,
 }: TranscriptSelectionMenuProps) {
   const prefersReducedMotion = useReducedMotion()
+  const [copied, setCopied] = useState(false)
 
-  const top = Math.max(12, selection.rect.top - 56)
+  useEffect(() => {
+    setCopied(false)
+  }, [selection.text])
+
+  const top = Math.max(12, selection.rect.top - 52)
   const left = selection.rect.left + selection.rect.width / 2
+
+  const handleAction = async (action: SelectionAction) => {
+    if (action === 'copy') {
+      try {
+        await navigator.clipboard.writeText(selection.text)
+        setCopied(true)
+        setTimeout(() => {
+          onClose()
+        }, 1500)
+      } catch {
+        onClose()
+      }
+      return
+    }
+
+    onClose()
+    await onAction(action, selection.text)
+  }
 
   return (
     <motion.div
+      data-transcript-toolbar
       initial={prefersReducedMotion ? false : { opacity: 0, y: 6, scale: 0.96 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={prefersReducedMotion ? undefined : { opacity: 0, y: 4, scale: 0.98 }}
@@ -58,29 +71,37 @@ export function TranscriptSelectionMenu({
         zIndex: 50,
       }}
       className={cn(
-        'flex items-center gap-0.5 rounded-2xl border border-accent/25 p-1',
-        'bg-[#0D0D0D]/90 backdrop-blur-xl shadow-[0_8px_40px_rgba(0,0,0,0.5),0_0_24px_rgba(214,162,11,0.12)]',
+        'flex items-center rounded-xl border border-white/[0.12] p-1',
+        'bg-[#141414]/95 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)]',
       )}
       onMouseDown={(event) => event.preventDefault()}
     >
-      {ACTIONS.map((action) => {
-        const Icon = action.icon
+      {ACTIONS.map((action, index) => {
+        const Icon = action.id === 'copy' && copied ? Check : action.icon
+        const isCopy = action.id === 'copy'
+
         return (
-          <button
-            key={action.id}
-            type="button"
-            onClick={() => {
-              onAction(action.id, selection.text)
-              onClose()
-            }}
-            className={cn(
-              'flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium text-foreground/90',
-              'transition-all duration-200 cursor-pointer hover:bg-accent/[0.12] hover:text-accent',
-            )}
-          >
-            <Icon className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">{action.label}</span>
-          </button>
+          <div key={action.id} className="flex items-center">
+            {index > 0 && <div className="mx-0.5 h-5 w-px bg-white/[0.1]" />}
+            <button
+              type="button"
+              onClick={() => void handleAction(action.id)}
+              className={cn(
+                'flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all duration-200 cursor-pointer',
+                isCopy && copied
+                  ? 'text-emerald'
+                  : action.accent
+                    ? 'text-foreground/90 hover:bg-accent/[0.12] hover:text-accent'
+                    : 'text-muted hover:bg-white/[0.06] hover:text-foreground',
+              )}
+            >
+              <Icon
+                className={cn('h-3.5 w-3.5', action.accent && !isCopy && 'text-accent')}
+                strokeWidth={1.75}
+              />
+              <span>{isCopy && copied ? 'Copied' : action.label}</span>
+            </button>
+          </div>
         )
       })}
     </motion.div>

@@ -26,19 +26,19 @@ export function NotesEmptyState({
         className,
       )}
     >
-      <div className="relative mb-8 flex h-20 w-20 items-center justify-center rounded-3xl border border-accent/20 bg-accent/[0.06] shadow-[0_0_40px_rgba(214,162,11,0.1)]">
+      <div className="relative mb-8 flex h-20 w-20 items-center justify-center rounded-3xl border border-accent/20 bg-accent/[0.06] shadow-[0_0_40px_rgba(var(--color-accent-rgb),0.1)]">
         <FileText className="h-9 w-9 text-accent" strokeWidth={1.5} />
       </div>
 
       {!hasTranscript ? (
         <>
           <p className="text-lg font-semibold text-foreground">
-            {isPdf ? 'Extracting PDF text' : 'Transcript required'}
+            {isPdf ? 'Extracting PDF text' : 'Processing your lecture'}
           </p>
           <p className="mt-2 max-w-md text-sm text-muted leading-relaxed">
             {isPdf
               ? 'Smart notes are generated from text extracted from your PDF. Try again if extraction failed.'
-              : 'Smart notes are generated from your lecture transcript. Transcribe your lecture first.'}
+              : 'Smart notes are generated automatically once your lecture is ready. This usually takes a minute or two.'}
           </p>
           {isPdf ? (
             onRetry && (
@@ -59,10 +59,10 @@ export function NotesEmptyState({
               to={`/transcript/${lectureId}`}
               className={cn(
                 'mt-8 inline-flex items-center gap-2 rounded-full bg-accent px-6 py-3 text-sm font-medium text-background',
-                'shadow-[0_0_24px_rgba(214,162,11,0.2)] hover:bg-accent-soft transition-all cursor-pointer',
+                'shadow-[0_0_24px_rgba(var(--color-accent-rgb),0.2)] hover:bg-accent-soft transition-all cursor-pointer',
               )}
             >
-              Go to Transcript
+              View Progress
             </Link>
           )}
         </>

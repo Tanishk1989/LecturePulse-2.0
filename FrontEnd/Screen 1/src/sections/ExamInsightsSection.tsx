@@ -28,7 +28,7 @@ export function ExamInsightsSection() {
                   Multivariable Integration
                 </h2>
                 <p className="mt-4 text-muted leading-relaxed">
-                  Based on your transcripts, Stoke's Theorem will give the highest
+                  Based on your lectures, Stoke's Theorem will give the highest
                   score boost for your upcoming test.
                 </p>
               </div>

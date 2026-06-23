@@ -120,7 +120,7 @@ export function TranscriptViewer({
                   className={cn(
                     'group flex w-full items-start gap-4 rounded-2xl px-4 py-3.5 text-left transition-all duration-200 cursor-pointer',
                     isActive
-                      ? 'border border-accent/25 bg-accent/[0.08] shadow-[0_0_24px_rgba(214,162,11,0.08)]'
+                      ? 'border border-accent/25 bg-accent/[0.08] shadow-[0_0_24px_rgba(var(--color-accent-rgb),0.08)]'
                       : 'border border-transparent hover:border-white/[0.06] hover:bg-white/[0.03]',
                   )}
                 >
@@ -169,7 +169,7 @@ function SearchHeader({
           type="search"
           value={searchQuery}
           onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="Search transcript…"
+          placeholder="Search lecture…"
           className={cn(
             'w-full rounded-2xl border border-white/[0.08] bg-white/[0.03] py-3 pl-11 pr-10',
             'text-sm text-foreground placeholder:text-muted/70 outline-none transition-colors',

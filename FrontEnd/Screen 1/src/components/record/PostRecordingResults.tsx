@@ -108,7 +108,7 @@ export function PostRecordingResults({
             'w-full inline-flex items-center justify-center gap-2 rounded-full border border-accent/30',
             'bg-accent/[0.08] px-6 py-3.5 text-sm font-medium text-accent',
             'hover:bg-accent/[0.12] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer',
-            'shadow-[0_0_28px_rgba(214,162,11,0.15)]',
+            'shadow-[0_0_28px_rgba(var(--color-accent-rgb),0.15)]',
           )}
         >
           <MessageSquare className="h-4 w-4" />

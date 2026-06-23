@@ -17,12 +17,16 @@ import { formatNextReview } from '@/lib/spacedRepetition'
 import { isFlashcardDue } from '@/lib/flashcardStudy'
 import type { Flashcard, ReviewRating } from '@/types/flashcard'
 import { cn } from '@/lib/utils'
+import { renderInlineText } from '@/components/shared/MarkdownRenderer'
+import { FeedbackControls } from '@/components/shared/FeedbackControls'
+import type { LectureRecording } from '@/types/lecture'
 
 interface FlashcardDeckProps {
   cards: Flashcard[]
   lectureTitles: Record<string, string>
   onReview: (id: string, rating: ReviewRating) => Promise<Flashcard | null>
   onDelete: (id: string) => Promise<void>
+  lectures?: LectureRecording[]
 }
 
 const STATUS_LABELS: Record<Flashcard['status'], string> = {
@@ -37,7 +41,7 @@ const STATUS_COLORS: Record<Flashcard['status'], string> = {
   mastered: 'text-emerald border-emerald/25 bg-emerald/[0.08]',
 }
 
-export function FlashcardDeck({ cards, lectureTitles, onReview, onDelete }: FlashcardDeckProps) {
+export function FlashcardDeck({ cards, lectureTitles, onReview, onDelete, lectures = [] }: FlashcardDeckProps) {
   const [index, setIndex] = useState(0)
   const [flipped, setFlipped] = useState(false)
   const [direction, setDirection] = useState(0)
@@ -45,6 +49,7 @@ export function FlashcardDeck({ cards, lectureTitles, onReview, onDelete }: Flas
   const [lastReviewHint, setLastReviewHint] = useState<string | null>(null)
 
   const current = cards[index] ?? null
+  const subject = lectures.find((l) => l.id === current?.lectureId)?.subject || null
   const progress = cards.length > 0 ? ((index + 1) / cards.length) * 100 : 0
 
   const goTo = (nextIndex: number, dir: number) => {
@@ -116,11 +121,11 @@ export function FlashcardDeck({ cards, lectureTitles, onReview, onDelete }: Flas
               }}
               transition={{ duration: 0.4, ease: [0.21, 0.47, 0.32, 0.98] }}
               onClick={() => setFlipped((prev) => !prev)}
-              className="relative cursor-pointer"
+              className="relative cursor-pointer group"
             >
               <DashboardCard
                 glow="gold"
-                className="min-h-[420px] flex flex-col items-center justify-center text-center py-14"
+                className="flashcard-card min-h-[420px] flex flex-col items-center justify-center text-center py-14 relative"
               >
                 <div className="mb-6 flex flex-wrap items-center justify-center gap-2">
                   <span
@@ -145,9 +150,9 @@ export function FlashcardDeck({ cards, lectureTitles, onReview, onDelete }: Flas
                   {flipped ? 'Answer' : 'Question'}
                 </p>
 
-                <p className="max-w-lg px-6 text-lg leading-relaxed text-foreground md:text-xl">
-                  {flipped ? current.back : current.front}
-                </p>
+                <div className="max-w-lg px-6 text-lg leading-relaxed text-foreground md:text-xl">
+                  {renderInlineText(flipped ? current.back : current.front)}
+                </div>
 
                 {current.concept && (
                   <p className="mt-6 text-xs text-muted/80">Concept: {current.concept}</p>
@@ -161,6 +166,19 @@ export function FlashcardDeck({ cards, lectureTitles, onReview, onDelete }: Flas
                 )}
 
                 <p className="mt-10 text-sm text-muted">Tap to flip</p>
+
+                <div
+                  className="absolute bottom-4 right-4 z-10"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <FeedbackControls
+                    contentType="flashcard"
+                    contentId={current.id}
+                    lectureId={current.lectureId}
+                    subject={subject}
+                    className="opacity-0 group-hover:opacity-40 hover:opacity-100 transition-opacity duration-200"
+                  />
+                </div>
               </DashboardCard>
             </motion.div>
           </AnimatePresence>

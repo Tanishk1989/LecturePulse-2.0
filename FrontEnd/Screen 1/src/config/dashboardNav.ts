@@ -1,24 +1,23 @@
 import type { LucideIcon } from 'lucide-react'
 import {
-  BarChart3,
-  Brain,
-  CalendarClock,
   CircleHelp,
   FileText,
   Flame,
+  GraduationCap,
+  Layers,
   LayoutDashboard,
-  Map,
-  Mic2,
+  Library,
   Network,
   NotebookPen,
-  PlaySquare,
   Radio,
   Settings,
   Sparkles,
   Target,
+  Timer,
   Upload,
   UserRound,
 } from 'lucide-react'
+import { YoutubeIcon } from '@/components/shared/YoutubeIcon'
 
 export type DashboardNavItem = {
   id: string
@@ -36,6 +35,7 @@ export type DashboardNavSection = {
 export type UploadAction = {
   id: string
   label: string
+  description: string
   icon: LucideIcon
   path: string
 }
@@ -47,12 +47,19 @@ export const dashboardNavSections: DashboardNavSection[] = [
     items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' }],
   },
   {
+    id: 'deep-dive',
+    title: 'DEEP DIVE',
+    items: [
+      { id: 'study-hub', label: 'Study Hub', icon: GraduationCap, path: '/notes' },
+    ],
+  },
+  {
     id: 'learn',
     title: 'Learn',
     items: [
-      { id: 'lectures', label: 'Lectures', icon: Mic2, path: '/dashboard/lectures' },
+      { id: 'lectures', label: 'View library', icon: Library, path: '/dashboard/lectures' },
       { id: 'notes', label: 'Smart Notes', icon: NotebookPen, path: '/dashboard/notes' },
-      { id: 'flashcards', label: 'Flashcards', icon: Brain, path: '/dashboard/flashcards' },
+      { id: 'flashcards', label: 'Flashcards', icon: Layers, path: '/dashboard/flashcards' },
       { id: 'knowledge-graph', label: 'Knowledge Graph', icon: Network, path: '/dashboard/knowledge-graph' },
       { id: 'ai-tutor', label: 'AI Tutor', icon: Sparkles, path: '/dashboard/ai-tutor' },
       { id: 'exam-focus', label: 'Exam Focus', icon: Target, path: '/dashboard/exam-focus' },
@@ -64,7 +71,7 @@ export const dashboardNavSections: DashboardNavSection[] = [
     items: [
       { id: 'record', label: 'Record Live', icon: Radio, path: '/dashboard/record' },
       { id: 'upload', label: 'Upload Lecture', icon: Upload, path: '/dashboard/upload' },
-      { id: 'youtube', label: 'Import YouTube', icon: PlaySquare, path: '/dashboard/youtube' },
+      { id: 'youtube', label: 'Import YouTube', icon: YoutubeIcon as any, path: '/dashboard/youtube' },
       { id: 'pdf', label: 'Upload PDF', icon: FileText, path: '/dashboard/pdf' },
     ],
   },
@@ -73,9 +80,7 @@ export const dashboardNavSections: DashboardNavSection[] = [
     title: 'Progress',
     items: [
       { id: 'streak', label: 'Streak', icon: Flame, path: '/dashboard/streak' },
-      { id: 'analytics', label: 'Analytics', icon: BarChart3, path: '/dashboard/analytics' },
-      { id: 'roadmap', label: 'Learning Roadmap', icon: Map, path: '/dashboard/roadmap' },
-      { id: 'revision', label: 'Revision Timeline', icon: CalendarClock, path: '/dashboard/revision' },
+      { id: 'exam-countdown', label: 'Exam Countdown', icon: Timer, path: '/dashboard/exam-countdown' },
     ],
   },
   {
@@ -89,11 +94,36 @@ export const dashboardNavSections: DashboardNavSection[] = [
   },
 ]
 
+
 export const uploadActions: UploadAction[] = [
-  { id: 'record', label: 'Record Live', icon: Radio, path: '/dashboard/record' },
-  { id: 'upload', label: 'Upload Lecture', icon: Upload, path: '/dashboard/upload' },
-  { id: 'youtube', label: 'Import YouTube', icon: PlaySquare, path: '/dashboard/youtube' },
-  { id: 'pdf', label: 'Upload PDF', icon: FileText, path: '/dashboard/pdf' },
+  {
+    id: 'record',
+    label: 'Record Live',
+    description: 'Record lecture in real time',
+    icon: Radio,
+    path: '/dashboard/record',
+  },
+  {
+    id: 'upload',
+    label: 'Upload Lecture',
+    description: 'Upload audio or video files',
+    icon: Upload,
+    path: '/dashboard/upload',
+  },
+  {
+    id: 'youtube',
+    label: 'Import YouTube',
+    description: 'Import from a YouTube URL',
+    icon: YoutubeIcon as any,
+    path: '/dashboard/youtube',
+  },
+  {
+    id: 'pdf',
+    label: 'Upload PDF',
+    description: 'Upload a PDF document',
+    icon: FileText,
+    path: '/dashboard/pdf',
+  },
 ]
 
 export const aiSuggestions = [

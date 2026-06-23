@@ -34,7 +34,7 @@ export function CursorSpotlight({ className }: CursorSpotlightProps) {
       )}
       style={{
         background:
-          'radial-gradient(600px circle at var(--x, 50%) var(--y, 50%), rgba(214,162,11,0.03), transparent 40%)',
+          'radial-gradient(600px circle at var(--x, 50%) var(--y, 50%), rgba(var(--color-accent-rgb),0.03), transparent 40%)',
       }}
       aria-hidden
     />

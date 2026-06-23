@@ -24,13 +24,13 @@ const STEPS: {
   },
   {
     id: 'transcribing',
-    label: 'Transcribing…',
-    subtitle: 'Whisper is processing your audio',
+    label: 'Processing…',
+    subtitle: 'Understanding your lecture',
     icon: Sparkles,
   },
   {
     id: 'ready',
-    label: 'Transcript Ready',
+    label: 'Ready',
     subtitle: 'Your words, captured perfectly',
     icon: Check,
   },
@@ -57,7 +57,7 @@ export function TranscriptionProgressCard({
       className={cn(
         'relative overflow-hidden rounded-3xl border border-accent/20',
         'bg-gradient-to-b from-accent/[0.06] via-[#0D0D0D] to-[#0A0A0A]',
-        'shadow-[0_0_60px_rgba(214,162,11,0.12),0_20px_50px_rgba(0,0,0,0.4)]',
+        'shadow-[0_0_60px_rgba(var(--color-accent-rgb),0.12),0_20px_50px_rgba(0,0,0,0.4)]',
         className,
       )}
     >
@@ -92,7 +92,7 @@ export function TranscriptionProgressCard({
                 layout
                 className={cn(
                   'relative flex items-center gap-4 rounded-2xl px-4 py-3.5 transition-colors duration-500',
-                  isActive && 'bg-accent/[0.08] shadow-[inset_0_0_24px_rgba(214,162,11,0.06)]',
+                  isActive && 'bg-accent/[0.08] shadow-[inset_0_0_24px_rgba(var(--color-accent-rgb),0.06)]',
                   isComplete && 'opacity-70',
                   isPending && 'opacity-40',
                 )}
@@ -142,7 +142,7 @@ export function TranscriptionProgressCard({
                       animate={{ opacity: 1, y: 0 }}
                       className="mt-0.5 text-xs text-muted"
                     >
-                      {step.subtitle}
+                      {transcriptionProgress?.subtitle || step.subtitle}
                     </motion.p>
                   )}
                 </div>

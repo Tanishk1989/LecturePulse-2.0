@@ -19,7 +19,7 @@ export function AmbientGlow({ className, variant = 'default' }: AmbientGlowProps
         <>
           <div className="absolute -top-32 right-0 h-[500px] w-[500px] rounded-full bg-[#4F46E5]/[0.09] blur-[120px]" />
           <div className="absolute -bottom-32 left-0 h-[400px] w-[400px] rounded-full bg-[#10B981]/[0.07] blur-[100px]" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[300px] w-[300px] rounded-full bg-[#D6A20B]/[0.04] blur-[80px]" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[300px] w-[300px] rounded-full bg-[var(--color-accent)]/[0.04] blur-[80px]" />
         </>
       )}
     </div>

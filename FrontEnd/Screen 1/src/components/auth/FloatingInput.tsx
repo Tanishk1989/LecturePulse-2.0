@@ -17,7 +17,7 @@ export function FloatingInput({ label, className, id, onFocus, onBlur, onChange,
         className={cn(
           'peer h-12 w-full rounded-xl border border-white/[0.08] bg-[#0A0A0A]/80 px-4 pt-5 pb-2 text-sm text-foreground',
           'transition-all duration-300 ease-out outline-none',
-          'focus:border-accent/60 focus:shadow-[0_0_0_3px_rgba(214,162,11,0.12)]',
+          'focus:border-accent/60 focus:shadow-[0_0_0_3px_rgba(var(--color-accent-rgb),0.12)]',
           'placeholder:text-transparent',
           className,
         )}

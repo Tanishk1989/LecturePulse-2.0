@@ -258,7 +258,7 @@ export async function transcribeFromAudioUrl(
       audio.pause()
 
       if (mode === 'reject') {
-        reject(error ?? new Error('Transcription failed.'))
+        reject(error ?? new Error('Processing failed.'))
         return
       }
 
@@ -307,7 +307,7 @@ export async function transcribeFromAudioUrl(
 
     audio.addEventListener('ended', () => finish('resolve'))
     audio.addEventListener('error', () => {
-      finish('reject', new Error('Failed to load audio for transcription.'))
+      finish('reject', new Error('Failed to load audio for processing.'))
     })
 
     audio.src = url
@@ -316,7 +316,7 @@ export async function transcribeFromAudioUrl(
       .play()
       .then(() => session.start())
       .catch(() => {
-        finish('reject', new Error('Failed to play audio for transcription.'))
+        finish('reject', new Error('Failed to play audio for processing.'))
       })
   })
 }

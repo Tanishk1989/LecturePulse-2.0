@@ -77,7 +77,7 @@ export function AudioPreviewPlayer({ url, duration }: AudioPreviewPlayerProps) {
           className={cn(
             'flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-accent/30',
             'bg-accent/[0.08] text-accent transition-all duration-300 cursor-pointer',
-            'hover:-translate-y-0.5 hover:scale-[1.03] hover:shadow-[0_0_24px_rgba(214,162,11,0.2)]',
+            'hover:-translate-y-0.5 hover:scale-[1.03] hover:shadow-[0_0_24px_rgba(var(--color-accent-rgb),0.2)]',
           )}
         >
           {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}

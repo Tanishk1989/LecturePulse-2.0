@@ -35,8 +35,8 @@ export function PdfDropZone({ onFileSelect }: PdfDropZoneProps) {
       className={cn(
         'relative w-full rounded-3xl border-2 border-dashed px-6 py-14 md:py-16 text-center cursor-pointer',
         'border-accent/25 bg-accent/[0.03] backdrop-blur-xl transition-all duration-300',
-        'hover:border-accent/45 hover:bg-accent/[0.06] hover:shadow-[0_0_48px_rgba(214,162,11,0.12)]',
-        isDragging && 'border-accent/55 bg-accent/[0.08] scale-[1.01] shadow-[0_0_56px_rgba(214,162,11,0.18)]',
+        'hover:border-accent/45 hover:bg-accent/[0.06] hover:shadow-[0_0_48px_rgba(var(--color-accent-rgb),0.12)]',
+        isDragging && 'border-accent/55 bg-accent/[0.08] scale-[1.01] shadow-[0_0_56px_rgba(var(--color-accent-rgb),0.18)]',
       )}
       animate={prefersReducedMotion ? {} : { scale: isDragging ? 1.01 : 1 }}
       whileHover={prefersReducedMotion ? {} : { scale: 1.008 }}
@@ -51,7 +51,7 @@ export function PdfDropZone({ onFileSelect }: PdfDropZoneProps) {
       />
 
       <div className="pointer-events-none">
-        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-accent/25 bg-accent/[0.08] shadow-[0_0_32px_rgba(214,162,11,0.15)]">
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-accent/25 bg-accent/[0.08] shadow-[0_0_32px_rgba(var(--color-accent-rgb),0.15)]">
           <FileText className="h-7 w-7 text-accent" strokeWidth={1.75} />
         </div>
         <p className="text-lg font-semibold text-foreground">Drop PDF here</p>

@@ -32,13 +32,16 @@ interface UploadLectureParams {
   originalFilename?: string
   mimeType?: string
   onProgress?: (percent: number) => void
+  skipProcessing?: boolean
+  subject?: string
 }
 
 interface LecturesContextValue {
   lectures: LectureRecording[]
   loading: boolean
+  error: string | null
   uploadLecture: (input: UploadLectureParams) => Promise<LectureRecording | null>
-  importYouTube: (metadata: YouTubeVideoMetadata) => Promise<LectureRecording | null>
+  importYouTube: (metadata: YouTubeVideoMetadata, subject?: string) => Promise<LectureRecording | null>
   deleteLecture: (id: string) => Promise<void>
   updateLectureTitle: (id: string, title: string) => Promise<void>
   toggleFavorite: (id: string) => Promise<void>
@@ -52,22 +55,26 @@ function useLecturesState(): LecturesContextValue {
   const { toast } = useToast()
   const [lectures, setLectures] = useState<LectureRecording[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     if (!user) {
       setLectures([])
+      setError(null)
       setLoading(false)
       return
     }
 
     setLoading(true)
+    setError(null)
     try {
       const rows = await getUserLectures(user.uid)
       setLectures(rows)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load lectures.'
-      toast.error(message)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load lectures.'
+      setError(message)
       setLectures([])
+      toast.error(message)
     } finally {
       setLoading(false)
     }
@@ -105,13 +112,16 @@ function useLecturesState(): LecturesContextValue {
               input.mimeType ??
               input.file?.type ??
               (input.blob instanceof Blob ? input.blob.type : undefined),
+            subject: input.subject,
           },
           input.onProgress,
         )
 
         setLectures((current) => [saved, ...current.filter((item) => item.id !== saved.id)])
         toast.success('Lecture uploaded successfully.')
-        void triggerLectureProcessing(saved.id)
+        if (!input.skipProcessing) {
+          void triggerLectureProcessing(saved.id)
+        }
         return saved
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Upload failed.'
@@ -123,7 +133,7 @@ function useLecturesState(): LecturesContextValue {
   )
 
   const importYouTube = useCallback(
-    async (metadata: YouTubeVideoMetadata): Promise<LectureRecording | null> => {
+    async (metadata: YouTubeVideoMetadata, subject?: string): Promise<LectureRecording | null> => {
       if (!user) {
         toast.error('Sign in to import YouTube videos.')
         return null
@@ -135,6 +145,7 @@ function useLecturesState(): LecturesContextValue {
           url: metadata.url,
           title: metadata.title,
           thumbnail: metadata.thumbnailUrl,
+          subject,
         })
 
         setLectures((current) => [saved, ...current.filter((item) => item.id !== saved.id)])
@@ -214,6 +225,7 @@ function useLecturesState(): LecturesContextValue {
     () => ({
       lectures,
       loading,
+      error,
       uploadLecture,
       importYouTube,
       deleteLecture,
@@ -221,7 +233,7 @@ function useLecturesState(): LecturesContextValue {
       toggleFavorite,
       refresh,
     }),
-    [lectures, loading, uploadLecture, importYouTube, deleteLecture, updateLectureTitle, toggleFavorite, refresh],
+    [lectures, loading, error, uploadLecture, importYouTube, deleteLecture, updateLectureTitle, toggleFavorite, refresh],
   )
 }
 

@@ -92,13 +92,13 @@ export function FlashcardsPage() {
     try {
       const transcript = await getTranscriptByLectureId(user.uid, targetLectureId)
       if (!transcript?.fullText?.trim()) {
-        toast.error('No transcript found for this lecture.')
+        toast.error('No lecture content found for this lecture.')
         return
       }
 
       const generated = await generateFlashcards(transcript.fullText)
       if (generated.length === 0) {
-        toast.error('Could not generate flashcards from this transcript.')
+        toast.error('Could not generate flashcards from this lecture.')
         return
       }
 
@@ -163,7 +163,7 @@ export function FlashcardsPage() {
           `${result.totalSaved} flashcards saved from ${result.lecturesProcessed} lecture${result.lecturesProcessed === 1 ? '' : 's'}.`,
         )
       } else if (result.lecturesSkipped > 0) {
-        toast.success('All lectures already have flashcards or no transcripts were found.')
+        toast.success('All lectures already have flashcards or no lecture content was found.')
       } else {
         toast.error('Could not generate flashcards from your lectures.')
       }
@@ -341,6 +341,7 @@ export function FlashcardsPage() {
           lectureTitles={lectureTitles}
           onReview={reviewCard}
           onDelete={handleDelete}
+          lectures={lectures}
         />
       )}
 

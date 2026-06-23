@@ -17,7 +17,7 @@ const accentMap: Record<
 > = {
   gold: {
     icon: 'text-accent',
-    glow: 'shadow-[inset_0_1px_0_rgba(214,162,11,0.06)]',
+    glow: 'shadow-[inset_0_1px_0_rgba(var(--color-accent-rgb),0.06)]',
     border: 'border-white/[0.08] hover:border-accent/20',
   },
   emerald: {

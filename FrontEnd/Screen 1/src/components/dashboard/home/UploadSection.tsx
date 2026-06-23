@@ -21,7 +21,7 @@ const cardMeta: Record<
   upload: {
     subtitle: 'Audio or video files.',
     badge: 'Drag & Drop',
-    dotClass: 'bg-accent shadow-[0_0_6px_rgba(214,162,11,0.6)]',
+    dotClass: 'bg-accent shadow-[0_0_6px_rgba(var(--color-accent-rgb),0.6)]',
     glow: 'gold',
   },
   youtube: {
@@ -46,8 +46,8 @@ const glowStyles: Record<GlowVariant, { outer: string; icon: string; hover: stri
   },
   gold: {
     outer: 'bg-accent/[0.12]',
-    icon: 'border-accent/25 bg-accent/[0.08] text-accent shadow-[0_0_24px_rgba(214,162,11,0.15)]',
-    hover: 'group-hover:shadow-[0_0_48px_rgba(214,162,11,0.14)] group-hover:border-accent/30',
+    icon: 'border-accent/25 bg-accent/[0.08] text-accent shadow-[0_0_24px_rgba(var(--color-accent-rgb),0.15)]',
+    hover: 'group-hover:shadow-[0_0_48px_rgba(var(--color-accent-rgb),0.14)] group-hover:border-accent/30',
   },
   indigo: {
     outer: 'bg-ambient/[0.12]',
@@ -180,11 +180,13 @@ function StandardCreateCard({
   )
 }
 
-export function UploadSection() {
+export function UploadSection({ hideTitle = false }: { hideTitle?: boolean } = {}) {
   return (
     <FadeUp delay={0.18}>
       <div>
-        <h2 className="font-heading text-2xl md:text-3xl text-foreground mb-4">Create</h2>
+        {!hideTitle && (
+          <h2 className="font-heading text-2xl md:text-3xl text-foreground mb-4">Create</h2>
+        )}
         <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
           {uploadActions.map((action, index) => {
             const meta = cardMeta[action.id]

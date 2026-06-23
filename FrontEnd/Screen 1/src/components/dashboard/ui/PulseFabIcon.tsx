@@ -15,7 +15,7 @@ export function PulseFabIcon({ size = 56, className }: PulseFabIconProps) {
       className={cn(
         'relative flex items-center justify-center rounded-full',
         'bg-[#0a0a0a] border-2 border-accent/35',
-        'shadow-[0_0_32px_rgba(214,162,11,0.22),0_0_64px_rgba(214,162,11,0.12)]',
+        'shadow-[0_0_32px_rgba(var(--color-accent-rgb),0.22),0_0_64px_rgba(var(--color-accent-rgb),0.12)]',
         'transition-all duration-300',
         className,
       )}
@@ -24,7 +24,7 @@ export function PulseFabIcon({ size = 56, className }: PulseFabIconProps) {
       <div
         className="absolute inset-0 rounded-full pointer-events-none"
         style={{
-          background: 'radial-gradient(circle, rgba(214,162,11,0.08) 0%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(var(--color-accent-rgb),0.08) 0%, transparent 70%)',
         }}
       />
       <PulseIcon size={iconSize} glow />

@@ -20,7 +20,7 @@ interface Node {
 
 const statusColors: Record<NodeStatus, string> = {
   mastered: '#10B981',
-  learning: '#D6A20B',
+  learning: 'var(--color-accent)',
   weak: '#EF4444',
   unexplored: '#52525B',
 }
@@ -126,7 +126,7 @@ export function KnowledgeGraphSection() {
                     y1={fromNode.y}
                     x2={toNode.x}
                     y2={toNode.y}
-                    stroke={isActive ? 'rgba(214,162,11,0.35)' : 'rgba(255,255,255,0.05)'}
+                    stroke={isActive ? 'rgba(var(--color-accent-rgb),0.35)' : 'rgba(255,255,255,0.05)'}
                     strokeWidth={isActive ? 2 : 1}
                     strokeDasharray="6 4"
                     animate={prefersReducedMotion ? {} : { strokeDashoffset: [0, -10] }}
@@ -162,7 +162,7 @@ export function KnowledgeGraphSection() {
                           node.status === 'weak' && isActive
                             ? 'drop-shadow(0 0 10px rgba(239,68,68,0.6))'
                             : node.status === 'learning' && isActive
-                              ? 'drop-shadow(0 0 8px rgba(214,162,11,0.5))'
+                              ? 'drop-shadow(0 0 8px rgba(var(--color-accent-rgb),0.5))'
                               : 'none',
                       }}
                     />

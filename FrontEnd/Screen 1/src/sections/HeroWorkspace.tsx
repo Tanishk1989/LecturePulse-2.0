@@ -26,16 +26,16 @@ const edges = [
 
 const statusColors: Record<string, string> = {
   mastered: '#10B981',
-  learning: '#D6A20B',
+  learning: 'var(--color-accent)',
   weak: '#EF4444',
   unexplored: '#52525B',
 }
 
 const floatingCards = [
   {
-    id: 'transcript',
+    id: 'captions',
     icon: Mic,
-    title: 'Live Transcript',
+    title: 'Live Captions',
     lines: ['"The eigenvalue λ satisfies..."', '"det(A − λI) = 0..."'],
     showWaveform: true,
     position: { top: '6%', left: '2%' },
@@ -111,7 +111,7 @@ function FloatingCard({
           : {
               y: [0, -12, 0],
               rotate: [0, 0.4, 0, -0.4, 0],
-              x: parallax.x * (card.id === 'transcript' ? 0.8 : 0.5),
+              x: parallax.x * (card.id === 'captions' ? 0.8 : 0.5),
             }
       }
       transition={{
@@ -124,7 +124,7 @@ function FloatingCard({
         className={`floating-card glow-hover rounded-xl p-3 md:p-4 ${
           isRed
             ? 'border-red/20 shadow-[0_0_24px_rgba(239,68,68,0.1)]'
-            : 'border-accent/15 shadow-[0_0_24px_rgba(214,162,11,0.08)]'
+            : 'border-accent/15 shadow-[0_0_24px_rgba(var(--color-accent-rgb),0.08)]'
         }`}
       >
         <div className="flex items-center gap-2 mb-2">
@@ -160,7 +160,7 @@ function FloatingCard({
 }
 
 export function HeroWorkspace() {
-  const prefersReducedMotion = useReducedMotion()
+  const prefersReducedMotion = useReducedMotion() ?? false
   const containerRef = useRef<HTMLDivElement>(null)
   const [mouse, setMouse] = useState({ x: 0, y: 0 })
 
@@ -188,8 +188,8 @@ export function HeroWorkspace() {
       <svg className="absolute inset-0 w-full h-full pointer-events-none" aria-hidden>
         <defs>
           <linearGradient id="heroLineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#D6A20B" stopOpacity="0" />
-            <stop offset="40%" stopColor="#D6A20B" stopOpacity="0.5" />
+            <stop offset="0%" stopColor="var(--color-accent)" stopOpacity="0" />
+            <stop offset="40%" stopColor="var(--color-accent)" stopOpacity="0.5" />
             <stop offset="100%" stopColor="#4F46E5" stopOpacity="0.2" />
           </linearGradient>
           <filter id="lineGlow">
@@ -254,7 +254,7 @@ export function HeroWorkspace() {
                   y1={a.y}
                   x2={b.x}
                   y2={b.y}
-                  stroke="rgba(214,162,11,0.35)"
+                  stroke="rgba(var(--color-accent-rgb),0.35)"
                   strokeWidth="1.5"
                   animate={prefersReducedMotion ? {} : { opacity: [0.25, 0.75, 0.25] }}
                   transition={{ duration: 2, repeat: Infinity, delay: i * 0.15 }}
@@ -266,7 +266,7 @@ export function HeroWorkspace() {
                 <motion.circle
                   cx={node.x}
                   cy={node.y}
-                  r="9"
+                  r={9}
                   fill={statusColors[node.status]}
                   animate={
                     prefersReducedMotion
@@ -279,7 +279,7 @@ export function HeroWorkspace() {
                       node.status === 'weak'
                         ? 'drop-shadow(0 0 8px rgba(239,68,68,0.7))'
                         : node.status === 'learning'
-                          ? 'drop-shadow(0 0 8px rgba(214,162,11,0.55))'
+                          ? 'drop-shadow(0 0 8px rgba(var(--color-accent-rgb),0.55))'
                           : node.status === 'mastered'
                             ? 'drop-shadow(0 0 6px rgba(16,185,129,0.5))'
                             : 'none',
