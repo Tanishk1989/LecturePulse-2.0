@@ -3,6 +3,7 @@ import { AuthProvider } from '@/context/AuthContext'
 import { ThemeProvider } from '@/context/ThemeContext'
 import { ToastProvider } from '@/components/ui/ToastProvider'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
+import { GuestRoute } from '@/components/auth/GuestRoute'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
 import { CursorSpotlight } from '@/components/effects/CursorSpotlight'
@@ -84,8 +85,22 @@ function AppRoutes() {
   if (isAuthPage) {
     return (
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/signup" element={<SignupPage />} />
+        <Route
+          path="/login"
+          element={
+            <GuestRoute>
+              <LoginPage />
+            </GuestRoute>
+          }
+        />
+        <Route
+          path="/signup"
+          element={
+            <GuestRoute>
+              <SignupPage />
+            </GuestRoute>
+          }
+        />
       </Routes>
     )
   }
@@ -133,8 +148,22 @@ function AppRoutes() {
     <div className="min-h-screen bg-background text-foreground relative">
       <Routes>
         <Route path="/" element={<MainShell />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/signup" element={<SignupPage />} />
+        <Route
+          path="/login"
+          element={
+            <GuestRoute>
+              <LoginPage />
+            </GuestRoute>
+          }
+        />
+        <Route
+          path="/signup"
+          element={
+            <GuestRoute>
+              <SignupPage />
+            </GuestRoute>
+          }
+        />
       </Routes>
     </div>
   )

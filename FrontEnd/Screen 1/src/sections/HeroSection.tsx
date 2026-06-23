@@ -9,8 +9,11 @@ import { MagneticButton } from '@/components/effects/MagneticButton'
 import { ParallaxGlow } from '@/components/effects/ParallaxGlow'
 import { BackgroundDepth } from '@/components/effects/BackgroundDepth'
 import { HeroWorkspace } from '@/sections/HeroWorkspace'
+import { useAuth } from '@/hooks/useAuth'
 
 export function HeroSection() {
+  const { user, loading } = useAuth()
+
   return (
     <Section className="relative min-h-screen flex flex-col items-center justify-center pt-24 pb-16 overflow-hidden">
       <ParallaxGlow variant="hero" />
@@ -44,14 +47,34 @@ export function HeroSection() {
 
             <FadeUp delay={0.3}>
               <div className="mt-8 flex flex-wrap items-center justify-center lg:justify-start gap-4">
-                <MagneticButton>
-                  <Link to="/signup">
-                    <Button variant="primary" size="lg" className="gap-2">
-                      Get Started
-                      <ArrowRight className="h-4 w-4" />
-                    </Button>
-                  </Link>
-                </MagneticButton>
+                {loading ? (
+                  <div className="h-12 w-44 animate-pulse rounded-xl bg-white/[0.06]" />
+                ) : user ? (
+                  <MagneticButton>
+                    <Link to="/dashboard">
+                      <Button variant="primary" size="lg" className="gap-2">
+                        Go to Dashboard
+                        <ArrowRight className="h-4 w-4" />
+                      </Button>
+                    </Link>
+                  </MagneticButton>
+                ) : (
+                  <>
+                    <MagneticButton>
+                      <Link to="/signup">
+                        <Button variant="primary" size="lg" className="gap-2">
+                          Get Started
+                          <ArrowRight className="h-4 w-4" />
+                        </Button>
+                      </Link>
+                    </MagneticButton>
+                    <Link to="/login">
+                      <Button variant="secondary" size="lg">
+                        Sign In
+                      </Button>
+                    </Link>
+                  </>
+                )}
                 <a href="#architecture" className="cursor-pointer">
                   <Button variant="secondary" size="lg">
                     Explore Architecture

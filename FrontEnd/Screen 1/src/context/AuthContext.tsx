@@ -26,6 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Restore session on refresh; Firebase persists auth in local storage.
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       void syncSupabaseAuth(firebaseUser).finally(() => {
         setUser(firebaseUser)

@@ -135,12 +135,19 @@ export function Navbar() {
           {loading ? (
             <div className="h-9 w-28 animate-pulse rounded-lg bg-white/[0.06]" />
           ) : user ? (
-            <UserMenu />
+            <>
+              <Link to="/dashboard">
+                <Button variant="primary" size="sm">
+                  Go to Dashboard
+                </Button>
+              </Link>
+              <UserMenu />
+            </>
           ) : (
             <>
               <Link to="/login">
                 <Button variant="ghost" size="sm">
-                  Log In
+                  Sign In
                 </Button>
               </Link>
               <Link to="/signup">
@@ -193,14 +200,19 @@ export function Navbar() {
             {loading ? (
               <div className="h-10 w-full animate-pulse rounded-lg bg-white/[0.06]" />
             ) : user ? (
-              <div className="py-2">
+              <div className="flex flex-col gap-2 py-2">
+                <Link to="/dashboard" onClick={() => setMobileOpen(false)}>
+                  <Button variant="primary" size="sm" className="w-full">
+                    Go to Dashboard
+                  </Button>
+                </Link>
                 <UserMenu onAction={() => setMobileOpen(false)} />
               </div>
             ) : (
               <>
                 <Link to="/login" onClick={() => setMobileOpen(false)}>
                   <Button variant="ghost" size="sm" className="w-full">
-                    Log In
+                    Sign In
                   </Button>
                 </Link>
                 <Link to="/signup" onClick={() => setMobileOpen(false)}>
