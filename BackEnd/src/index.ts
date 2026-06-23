@@ -40,6 +40,16 @@ app.use('/api/streaks', streakRouter)
 app.use('/api/exam-countdown', examCountdownRouter)
 
 
+app.get('/', (_req, res) => {
+  res.json({
+    name: 'LecturePulse API',
+    status: 'running',
+    docs: 'All routes are under /api',
+    health: '/api/health',
+    database: '/api/health/db',
+  })
+})
+
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() })
 })
