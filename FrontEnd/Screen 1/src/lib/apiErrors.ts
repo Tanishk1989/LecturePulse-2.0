@@ -24,8 +24,6 @@ export function sanitizeApiErrorMessage(message: string, code?: string): string 
     return DB_AUTH_FAILED_MESSAGE
   }
 
-  const lower = message.toLowerCase()
-
   if (
     lower.includes('invalid `prisma') ||
     lower.includes("can't reach database server") ||
