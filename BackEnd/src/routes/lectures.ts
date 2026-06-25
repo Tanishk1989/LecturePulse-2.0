@@ -89,7 +89,7 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
   const { id } = req.params
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })
 
-  const { title, favorite, status } = req.body
+  const { title, favorite, status, subject, tags } = req.body
 
   try {
     // Verify ownership
@@ -101,12 +101,26 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
       return res.status(404).json({ error: 'Lecture not found.' })
     }
 
+    let normalizedTags: string[] | undefined
+    if (tags !== undefined) {
+      if (!Array.isArray(tags)) {
+        return res.status(400).json({ error: 'tags must be an array of strings.' })
+      }
+      normalizedTags = tags
+        .filter((tag): tag is string => typeof tag === 'string')
+        .map((tag) => tag.trim())
+        .filter(Boolean)
+        .slice(0, 20)
+    }
+
     const updated = await prisma.lecture.update({
       where: { id },
       data: {
         title: title !== undefined ? title.trim() : undefined,
         favorite: favorite !== undefined ? favorite : undefined,
         status: status !== undefined ? status : undefined,
+        subject: subject !== undefined ? (subject ? String(subject).trim() : null) : undefined,
+        tags: normalizedTags !== undefined ? normalizedTags : undefined,
       },
     })
 
@@ -157,7 +171,7 @@ router.post('/:id/process', requireAuth, async (req: AuthenticatedRequest, res: 
   const { id } = req.params
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })
 
-  const { generateNotes, forceRetranscribe } = req.body
+  const { generateNotes, forceRetranscribe, transcriptionLanguage } = req.body
 
   try {
     const lecture = await prisma.lecture.findFirst({
@@ -182,6 +196,8 @@ router.post('/:id/process', requireAuth, async (req: AuthenticatedRequest, res: 
     void triggerLectureProcessing(id, userId, {
       generateNotes: generateNotes !== false,
       forceRetranscribe: forceRetranscribe === true,
+      transcriptionLanguage:
+        typeof transcriptionLanguage === 'string' ? transcriptionLanguage : undefined,
     }).catch((err) => {
       console.error(`Background processing job failed for lecture ${id}:`, err)
     })

@@ -10,13 +10,18 @@ import {
   Network,
   NotebookPen,
   Radio,
+  Search,
   Settings,
   Sparkles,
   Target,
   Timer,
   Upload,
   UserRound,
+  ClipboardList,
+  CalendarClock,
+  Building2,
 } from 'lucide-react'
+import type { MessageKey } from '@/lib/i18n/messages'
 import { YoutubeIcon } from '@/components/shared/YoutubeIcon'
 
 export type DashboardNavItem = {
@@ -24,6 +29,7 @@ export type DashboardNavItem = {
   label: string
   icon: LucideIcon
   path: string
+  i18nKey?: MessageKey
 }
 
 export type DashboardNavSection = {
@@ -44,7 +50,15 @@ export const dashboardNavSections: DashboardNavSection[] = [
   {
     id: 'home',
     title: 'Home',
-    items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' }],
+    items: [
+      {
+        id: 'dashboard',
+        label: 'Dashboard',
+        icon: LayoutDashboard,
+        path: '/dashboard',
+        i18nKey: 'nav.dashboard',
+      },
+    ],
   },
   {
     id: 'deep-dive',
@@ -57,19 +71,36 @@ export const dashboardNavSections: DashboardNavSection[] = [
     id: 'learn',
     title: 'Learn',
     items: [
-      { id: 'lectures', label: 'View library', icon: Library, path: '/dashboard/lectures' },
-      { id: 'notes', label: 'Smart Notes', icon: NotebookPen, path: '/dashboard/notes' },
-      { id: 'flashcards', label: 'Flashcards', icon: Layers, path: '/dashboard/flashcards' },
-      { id: 'knowledge-graph', label: 'Knowledge Graph', icon: Network, path: '/dashboard/knowledge-graph' },
-      { id: 'ai-tutor', label: 'AI Tutor', icon: Sparkles, path: '/dashboard/ai-tutor' },
-      { id: 'exam-focus', label: 'Exam Focus', icon: Target, path: '/dashboard/exam-focus' },
+      { id: 'lectures', label: 'View library', icon: Library, path: '/dashboard/lectures', i18nKey: 'nav.lectures' },
+      { id: 'search', label: 'Search', icon: Search, path: '/dashboard/search', i18nKey: 'nav.search' },
+      { id: 'notes', label: 'Smart Notes', icon: NotebookPen, path: '/dashboard/notes', i18nKey: 'nav.notes' },
+      { id: 'flashcards', label: 'Flashcards', icon: Layers, path: '/dashboard/flashcards', i18nKey: 'nav.flashcards' },
+      { id: 'quiz', label: 'Quiz', icon: ClipboardList, path: '/dashboard/quiz', i18nKey: 'nav.quiz' },
+      {
+        id: 'revision',
+        label: 'Revision',
+        icon: CalendarClock,
+        path: '/dashboard/revision',
+        i18nKey: 'nav.revision',
+      },
+      {
+        id: 'knowledge-graph',
+        label: 'Knowledge Graph',
+        icon: Network,
+        path: '/dashboard/knowledge-graph',
+        i18nKey: 'nav.knowledgeGraph',
+      },
+      { id: 'ai-tutor', label: 'AI Tutor', icon: Sparkles, path: '/dashboard/ai-tutor', i18nKey: 'nav.aiTutor' },
+      { id: 'exam-focus', label: 'Exam Focus', icon: Target, path: '/dashboard/exam-focus', i18nKey: 'nav.examFocus' },
+      { id: 'timetable', label: 'Timetable', icon: CalendarClock, path: '/dashboard/timetable', i18nKey: 'nav.timetable' },
+      { id: 'institution', label: 'Institution', icon: Building2, path: '/dashboard/institution', i18nKey: 'nav.institution' },
     ],
   },
   {
     id: 'create',
     title: 'Create',
     items: [
-      { id: 'record', label: 'Record Live', icon: Radio, path: '/dashboard/record' },
+      { id: 'record', label: 'Record Live', icon: Radio, path: '/dashboard/record', i18nKey: 'nav.record' },
       { id: 'upload', label: 'Upload Lecture', icon: Upload, path: '/dashboard/upload' },
       { id: 'youtube', label: 'Import YouTube', icon: YoutubeIcon as any, path: '/dashboard/youtube' },
       { id: 'pdf', label: 'Upload PDF', icon: FileText, path: '/dashboard/pdf' },
@@ -135,10 +166,10 @@ export const aiSuggestions = [
 ]
 
 export const searchExamples = [
-  'Explain this concept',
-  'Summarize lecture',
-  'Generate flashcards',
-  'Help me revise',
+  'thermodynamics',
+  'key definitions',
+  'exam tips',
+  'photosynthesis',
 ]
 
 export const roadmapStages = [

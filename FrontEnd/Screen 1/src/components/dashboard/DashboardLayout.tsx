@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom'
 import { DashboardProvider } from '@/context/DashboardContext'
 import { AiTutorProvider } from '@/context/AiTutorContext'
+import { I18nProvider } from '@/context/I18nContext'
 import { LectureProvider } from '@/hooks/useLectures'
 import { Sidebar, MobileSidebarDrawer } from '@/components/dashboard/Sidebar'
 import { TopNavbar } from '@/components/dashboard/TopNavbar'
@@ -8,12 +9,16 @@ import { RightPanel, MobileTutorOverlay } from '@/components/dashboard/RightPane
 import { FloatingPulseAssistant } from '@/components/dashboard/FloatingPulseAssistant'
 import { TutorRouteSync } from '@/components/dashboard/TutorRouteSync'
 import { GlobalKeyboardShortcuts } from '@/components/account/GlobalKeyboardShortcuts'
+import { OfflineBanner } from '@/components/shared/OfflineBanner'
+import { PwaInstallPrompt } from '@/components/shared/PwaInstallPrompt'
+import { ClassStartingPrompt } from '@/components/timetable/ClassStartingPrompt'
 import { KeyboardShortcutsModal } from '@/components/account/KeyboardShortcutsModal'
 
 export function DashboardLayout() {
   return (
     <DashboardProvider>
       <LectureProvider>
+        <I18nProvider>
         <AiTutorProvider>
           <GlobalKeyboardShortcuts>
           <TutorRouteSync />
@@ -42,10 +47,14 @@ export function DashboardLayout() {
 
             <MobileTutorOverlay />
             <FloatingPulseAssistant />
+            <OfflineBanner />
+            <PwaInstallPrompt />
+            <ClassStartingPrompt />
           </div>
           </div>
           </GlobalKeyboardShortcuts>
         </AiTutorProvider>
+        </I18nProvider>
       </LectureProvider>
     </DashboardProvider>
   )

@@ -9,6 +9,7 @@ import {
   Play,
   RefreshCw,
   Sparkles,
+  Users,
 } from 'lucide-react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { FadeUp } from '@/components/effects/FadeUp'
@@ -36,7 +37,12 @@ import { formatDuration, formatRelativeDate } from '@/lib/formatDuration'
 import { formatLanguage } from '@/lib/transcriptUtils'
 import { generateFlashcardFromExcerpt } from '@/services/aiGenerationService'
 import { createFlashcards } from '@/services/flashcardService'
+import { detectSpeakers } from '@/services/speakerDetectionService'
+import { updateTranscript } from '@/services/transcriptionService'
+import { hasSpeakerLabels } from '@/lib/speakerLabels'
+import type { SpeakerRole, TranscriptSegment } from '@/types/transcript'
 import { useToast } from '@/components/ui/ToastProvider'
+import { TranslateContentButton } from '@/components/shared/TranslateContentButton'
 
 function cleanLectureTitle(title: string): string {
   let clean = title.replace(/\.(mp3|wav|m4a|webm|mp4|pdf)$/i, '')
@@ -71,6 +77,9 @@ export function TranscriptPage() {
   const [textSize, setTextSize] = useState<'sm' | 'md' | 'lg'>('md')
   const [showSearchBar, setShowSearchBar] = useState(false)
   const [scrollProgress, setScrollProgress] = useState(0)
+  const [speakerFilter, setSpeakerFilter] = useState<SpeakerRole | 'all'>('all')
+  const [detectingSpeakers, setDetectingSpeakers] = useState(false)
+  const [segmentsOverride, setSegmentsOverride] = useState<TranscriptSegment[] | null>(null)
 
   // Floating selection toolbar state
   const [selectionToolbar, setSelectionToolbar] = useState<{
@@ -100,13 +109,49 @@ export function TranscriptPage() {
     error,
     canTranscribe,
     retryTranscription,
+    refresh: refreshTranscript,
   } = useTranscription(lectureId, lecture?.audioUrl, {
     autoTranscribe: isTranscribable,
     onLectureStatusChange: () => void refreshLectures(),
   })
 
   const segments = transcript?.segments ?? []
-  const search = useTranscriptSearch(segments)
+  const displaySegments = useMemo(() => {
+    const base = segmentsOverride ?? segments
+    if (speakerFilter === 'all') return base
+    return base.filter((segment) => segment.speaker === speakerFilter)
+  }, [segments, segmentsOverride, speakerFilter])
+
+  const speakersDetected = useMemo(
+    () => hasSpeakerLabels(segmentsOverride ?? segments),
+    [segments, segmentsOverride],
+  )
+
+  useEffect(() => {
+    setSegmentsOverride(null)
+    setSpeakerFilter('all')
+  }, [transcript?.id, transcript?.updatedAt])
+
+  const handleDetectSpeakers = useCallback(async () => {
+    if (!user || !transcript || segments.length === 0) return
+
+    setDetectingSpeakers(true)
+    try {
+      const labeled = await detectSpeakers(segmentsOverride ?? segments, {
+        subject: lecture?.subject ?? undefined,
+      })
+      await updateTranscript(transcript.id, user.uid, { segments: labeled })
+      setSegmentsOverride(labeled)
+      toast.success('Speaker labels updated.')
+      void refreshTranscript()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Speaker detection failed.')
+    } finally {
+      setDetectingSpeakers(false)
+    }
+  }, [lecture?.subject, refreshTranscript, segments, segmentsOverride, toast, transcript, user])
+
+  const search = useTranscriptSearch(displaySegments)
 
   const effectiveDuration = duration || lecture?.duration || 0
 
@@ -134,11 +179,11 @@ export function TranscriptPage() {
         direction === 'next' ? search.goToNextMatch() : search.goToPreviousMatch()
 
       if (match) {
-        const segment = segments[match.segmentIndex]
+        const segment = displaySegments[match.segmentIndex]
         if (segment) handleSeek(segment.start)
       }
     },
-    [handleSeek, search, segments],
+    [handleSeek, search, displaySegments],
   )
 
   // Floating selection toolbar listeners
@@ -435,6 +480,44 @@ export function TranscriptPage() {
               >
                 Find
               </button>
+              {showTranscript && transcript?.text && (
+                <TranslateContentButton
+                  sourceText={transcript.text}
+                  contextLabel="lecture transcript"
+                />
+              )}
+              {showTranscript && segments.length > 0 && (
+                <>
+                  <button
+                    type="button"
+                    disabled={detectingSpeakers}
+                    onClick={() => void handleDetectSpeakers()}
+                    className="rounded-full border border-white/[0.06] bg-white/[0.02] px-3.5 py-1.5 text-xs text-muted hover:bg-white/[0.06] hover:text-foreground cursor-pointer transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    <Users className="h-3.5 w-3.5" />
+                    {detectingSpeakers ? 'Detecting…' : speakersDetected ? 'Re-detect speakers' : 'Detect speakers'}
+                  </button>
+                  {speakersDetected && (
+                    <div className="flex items-center gap-1">
+                      {(['all', 'professor', 'student'] as const).map((filter) => (
+                        <button
+                          key={filter}
+                          type="button"
+                          onClick={() => setSpeakerFilter(filter)}
+                          className={cn(
+                            'rounded-full border px-3 py-1.5 text-[11px] capitalize cursor-pointer transition-colors',
+                            speakerFilter === filter
+                              ? 'border-accent/30 bg-accent/[0.08] text-accent'
+                              : 'border-white/[0.06] bg-white/[0.02] text-muted hover:text-foreground',
+                          )}
+                        >
+                          {filter === 'all' ? 'All' : filter}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
               <span className="rounded-full border border-white/[0.06] bg-white/[0.02] px-3.5 py-1.5 text-xs text-muted flex items-center gap-1.5 uppercase font-mono">
                 {transcript?.language ? formatLanguage(transcript.language) : 'EN'}
               </span>
@@ -482,7 +565,7 @@ export function TranscriptPage() {
                       </p>
                       <TranscriptSegmentList
                         ref={transcriptListRef}
-                        segments={transcript.segments}
+                        segments={displaySegments}
                         fullText={transcript.text}
                         query={search.query}
                         activeMatch={search.activeMatch}

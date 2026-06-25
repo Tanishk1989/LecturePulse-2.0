@@ -1,5 +1,6 @@
 import { chatCompletion } from '@/services/aiGenerationService'
 import { getUserNotes } from '@/services/notesService'
+import { retrieveRagContext } from '@/services/translationService'
 import { apiFetch, apiFetchStream } from '@/lib/api'
 import type { LectureRecording } from '@/types/lecture'
 import { getCachedProfile } from '@/services/profileService'
@@ -171,6 +172,28 @@ interface ChunkWithScore {
   lectureTitle: string
 }
 
+export async function retrieveRelevantChunksHybrid(
+  question: string,
+  lectureContext: string,
+  lectureIds: string[] = [],
+): Promise<{ context: string; usedFallback: boolean }> {
+  if (lectureIds.length > 0) {
+    try {
+      const chunks = await retrieveRagContext(question, lectureIds, 6)
+      if (chunks.length > 0) {
+        const contextString = chunks
+          .map((chunk) => `[From Lecture: ${chunk.lectureTitle}]\n${chunk.text}`)
+          .join('\n\n')
+        return { context: contextString, usedFallback: false }
+      }
+    } catch (error) {
+      console.warn('Vector RAG failed, using keyword fallback:', error)
+    }
+  }
+
+  return retrieveRelevantChunks(question, lectureContext)
+}
+
 export function retrieveRelevantChunks(
   question: string,
   lectureContext: string,
@@ -270,6 +293,7 @@ export async function askTutorQuestion(
   question: string,
   lectureContext: string,
   history: TutorMessage[] = [],
+  lectureIds: string[] = [],
 ): Promise<string> {
   if (!lectureContext.trim()) {
     throw new Error(
@@ -279,7 +303,7 @@ export async function askTutorQuestion(
 
   let relevantChunks = ''
   try {
-    const res = retrieveRelevantChunks(question, lectureContext)
+    const res = await retrieveRelevantChunksHybrid(question, lectureContext, lectureIds)
     relevantChunks = res.context
   } catch (err) {
     console.error('Error during retrieveRelevantChunks:', err)
@@ -306,7 +330,7 @@ export async function askTutorQuestion(
 export async function askAboutTranscript(
   transcript: string,
   question: string,
-  options?: { notesContext?: string },
+  options?: { notesContext?: string; lectureId?: string },
 ): Promise<string> {
   if (!transcript.trim()) {
     throw new Error('Lecture not ready yet. Wait for processing to finish.')
@@ -319,7 +343,11 @@ export async function askAboutTranscript(
 
   let relevantChunks = ''
   try {
-    const res = retrieveRelevantChunks(question, lectureContext)
+    const res = await retrieveRelevantChunksHybrid(
+      question,
+      lectureContext,
+      options?.lectureId ? [options.lectureId] : [],
+    )
     relevantChunks = res.context
   } catch (err) {
     console.error('Error during retrieveRelevantChunks:', err)
@@ -339,6 +367,7 @@ export async function askTutorQuestionStream(
   lectureContext: string,
   history: TutorMessage[] = [],
   onChunk: (text: string) => void,
+  lectureIds: string[] = [],
 ): Promise<void> {
   if (!lectureContext.trim()) {
     throw new Error(
@@ -348,7 +377,7 @@ export async function askTutorQuestionStream(
 
   let relevantChunks = ''
   try {
-    const res = retrieveRelevantChunks(question, lectureContext)
+    const res = await retrieveRelevantChunksHybrid(question, lectureContext, lectureIds)
     relevantChunks = res.context
   } catch (err) {
     console.error('Error during retrieveRelevantChunks:', err)

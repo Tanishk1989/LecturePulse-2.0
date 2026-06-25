@@ -10,7 +10,8 @@ import React, {
 } from 'react'
 import { useReducedMotion } from 'framer-motion'
 import type { TranscriptSearchMatch } from '@/hooks/useTranscriptSearch'
-import type { TranscriptSegment } from '@/types/transcript'
+import type { SpeakerRole, TranscriptSegment } from '@/types/transcript'
+import { SpeakerBadge } from '@/components/transcript/SpeakerBadge'
 import { cn } from '@/lib/utils'
 import { ScrollFadeContainer } from '@/components/shared/ScrollFadeContainer'
 
@@ -23,6 +24,16 @@ interface TranscriptSegmentListProps {
   hasPlayer?: boolean
   onScroll?: (e: React.UIEvent<HTMLDivElement>) => void
   className?: string
+  showSpeakers?: boolean
+}
+
+function SegmentSpeakerLabel({ speaker }: { speaker?: SpeakerRole }) {
+  if (!speaker || speaker === 'unknown') return null
+  return (
+    <div className="mb-2">
+      <SpeakerBadge speaker={speaker} />
+    </div>
+  )
 }
 
 export interface TranscriptSegmentListHandle {
@@ -71,7 +82,7 @@ export const TranscriptSegmentList = forwardRef<
   TranscriptSegmentListHandle,
   TranscriptSegmentListProps
 >(function TranscriptSegmentList(
-  { segments, fullText, query, activeMatch, onSeek, hasPlayer = true, onScroll, className },
+  { segments, fullText, query, activeMatch, onSeek, hasPlayer = true, onScroll, className, showSpeakers = true },
   ref,
 ) {
   const prefersReducedMotion = useReducedMotion()
@@ -256,6 +267,7 @@ export const TranscriptSegmentList = forwardRef<
           const isMatchSegment = activeMatch?.segmentIndex === segmentIndex
           return (
             <div key={segment.id} ref={isMatchSegment ? matchRef : undefined}>
+              {showSpeakers && <SegmentSpeakerLabel speaker={segment.speaker} />}
               <p className="mb-6 text-[15px] leading-[2.1] text-foreground/90 select-text">
                 {highlightText(segment.text, query, activeMatch, segmentIndex)}
               </p>
@@ -283,10 +295,9 @@ export const TranscriptSegmentList = forwardRef<
         let wordIdx = 0
 
         return (
-          <p
-            key={segment.id}
-            className="mb-6 text-[15px] leading-[2.1] text-foreground/90 select-text"
-          >
+          <div key={segment.id}>
+            {showSpeakers && <SegmentSpeakerLabel speaker={segment.speaker} />}
+            <p className="mb-6 text-[15px] leading-[2.1] text-foreground/90 select-text">
             {tokens.map((token, index) => {
               const isWhitespace = token.trim().length === 0
               if (isWhitespace) {
@@ -313,7 +324,8 @@ export const TranscriptSegmentList = forwardRef<
                 </span>
               )
             })}
-          </p>
+            </p>
+          </div>
         )
       })}
     </ScrollFadeContainer>

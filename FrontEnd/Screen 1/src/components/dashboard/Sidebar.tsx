@@ -7,6 +7,7 @@ import { DashboardNavIcon } from '@/components/dashboard/ui/DashboardNavIcon'
 import { SidebarAddLectureItem } from '@/components/dashboard/SidebarAddLectureItem'
 import { useDashboard } from '@/context/DashboardContext'
 import { useTheme } from '@/context/ThemeContext'
+import { useI18n } from '@/context/I18nContext'
 import { cn } from '@/lib/utils'
 import { ScrollFadeContainer } from '@/components/shared/ScrollFadeContainer'
 
@@ -39,6 +40,7 @@ function SidebarContent({ onNavigate, isDrawer = true }: { onNavigate?: () => vo
   const location = useLocation()
   const { theme, toggleTheme } = useTheme()
   const { toggleSidebar } = useDashboard()
+  const { translate } = useI18n()
 
   return (
     <div className="flex h-full flex-col overflow-visible">
@@ -102,7 +104,9 @@ function SidebarContent({ onNavigate, isDrawer = true }: { onNavigate?: () => vo
                           )}
                         >
                           <DashboardNavIcon icon={item.icon} active={isActive} id={item.id} />
-                          <span className={cn(isActive && 'font-medium', isDrawer ? 'block' : 'hidden lg:block')}>{item.label}</span>
+                          <span className={cn(isActive && 'font-medium', isDrawer ? 'block' : 'hidden lg:block')}>
+                            {item.i18nKey ? translate(item.i18nKey) : item.label}
+                          </span>
                         </NavLink>
                       </li>
                     )

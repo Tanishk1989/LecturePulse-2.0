@@ -5,6 +5,7 @@ import { DashboardPageHeader, DashboardPageShell } from '@/components/dashboard/
 import { Skeleton } from '@/components/dashboard/ui/Skeleton'
 import { useStudyMetrics } from '@/hooks/useStudyMetrics'
 import { formatRelativeDate } from '@/lib/formatDuration'
+import { useI18n } from '@/context/I18nContext'
 import { cn } from '@/lib/utils'
 
 const bucketAccent: Record<string, string> = {
@@ -17,6 +18,7 @@ const bucketAccent: Record<string, string> = {
 
 export function RevisionTimelinePage() {
   const { revisionBuckets, lectureTitles, loading, metrics } = useStudyMetrics()
+  const { translate } = useI18n()
   const dueCount = metrics.reviewsDue
   const scheduledCount = revisionBuckets.reduce((total, bucket) => total + bucket.cards.length, 0)
 
@@ -24,23 +26,23 @@ export function RevisionTimelinePage() {
     <DashboardPageShell>
       <FadeUp>
         <DashboardPageHeader
-          title="Revision Timeline"
-          description="Your spaced repetition schedule — review at the right time to lock in what you've learned."
+          title={translate('revision.title')}
+          description={translate('revision.description')}
         />
       </FadeUp>
 
       <FadeUp delay={0.08}>
         <div className="grid sm:grid-cols-3 gap-3">
           <div className="rounded-2xl border border-accent/20 bg-accent/[0.06] p-5">
-            <p className="text-xs uppercase tracking-wider text-muted">Due now</p>
+            <p className="text-xs uppercase tracking-wider text-muted">{translate('revision.dueNow')}</p>
             <p className="mt-2 font-heading text-3xl text-accent">{dueCount}</p>
           </div>
           <div className="rounded-2xl border border-white/[0.08] bg-card/80 p-5">
-            <p className="text-xs uppercase tracking-wider text-muted">Scheduled</p>
+            <p className="text-xs uppercase tracking-wider text-muted">{translate('revision.scheduled')}</p>
             <p className="mt-2 font-heading text-3xl text-foreground">{scheduledCount}</p>
           </div>
           <div className="rounded-2xl border border-white/[0.08] bg-card/80 p-5">
-            <p className="text-xs uppercase tracking-wider text-muted">Mastered</p>
+            <p className="text-xs uppercase tracking-wider text-muted">{translate('revision.mastered')}</p>
             <p className="mt-2 font-heading text-3xl text-emerald">{metrics.masteredCards}</p>
           </div>
         </div>
@@ -97,7 +99,7 @@ export function RevisionTimelinePage() {
                       to="/dashboard/flashcards"
                       className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:text-accent-soft"
                     >
-                      Study now
+                      {translate('revision.studyNow')}
                       <ArrowRight className="h-3 w-3" />
                     </Link>
                   )}

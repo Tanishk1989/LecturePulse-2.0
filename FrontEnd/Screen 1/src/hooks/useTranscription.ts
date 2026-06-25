@@ -14,6 +14,7 @@ import {
   getLectureProcessingStatus,
   isBackgroundProcessingAvailable,
 } from '@/services/processingService'
+import { getProcessingOptions } from '@/lib/processingPreferences'
 import { updateLecture } from '@/services/lectureService'
 import type { Transcript } from '@/types/transcript'
 
@@ -165,7 +166,10 @@ export function useTranscription(
 
     try {
       if (isBackgroundProcessingAvailable()) {
-        await enqueueLectureProcessing(lectureId, { generateNotes: true })
+        await enqueueLectureProcessing(lectureId, {
+          generateNotes: true,
+          ...getProcessingOptions(user.uid),
+        })
         toast.success('Processing started. You can leave this page.')
       } else {
         throw new Error(AI_UNAVAILABLE_MESSAGE)
@@ -203,6 +207,7 @@ export function useTranscription(
       await enqueueLectureProcessing(lectureId, {
         generateNotes: true,
         forceRetranscribe: true,
+        ...getProcessingOptions(user.uid),
       })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Processing failed.'

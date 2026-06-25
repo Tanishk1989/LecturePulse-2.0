@@ -3,6 +3,7 @@ import { prisma } from '../config/db'
 import { AuthenticatedRequest, requireAuth } from '../middleware/auth'
 import { sendRouteError } from '../utils/apiError'
 import { extractAndStoreConcepts } from '../services/conceptExtractor'
+import { getRelatedLectureIds } from '../services/crossLectureService'
 
 const router = Router()
 
@@ -64,6 +65,8 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =>
 
   try {
     void backfillPendingExtractions(userId)
+    const { syncCrossLectureLinks } = await import('../services/crossLectureService')
+    await syncCrossLectureLinks(userId)
 
     const [concepts, links, lectures, flashcards, quizAttempts] = await Promise.all([
       prisma.kgConcept.findMany({
@@ -96,6 +99,8 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =>
     const extractingCount = lectures.filter((l) => l.kgStatus === 'extracting').length
     const hasLectures = lectures.length > 0
 
+    const lectureTitleById = new Map(lectures.map((l) => [l.id, l.title]))
+
     const nodes = concepts.map((concept) => {
       const relatedFlashcards = flashcards.filter(
         (f) =>
@@ -109,6 +114,12 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =>
       const linkCount = links.filter(
         (l) => l.fromConceptId === concept.id || l.toConceptId === concept.id,
       ).length
+      const relatedLectureIds = getRelatedLectureIds(
+        concept.id,
+        concept.name,
+        concept.lectureId,
+        concepts,
+      )
 
       return {
         id: concept.id,
@@ -119,6 +130,8 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =>
         mastery,
         masteryTier: masteryTier(mastery),
         linkCount,
+        relatedLectureIds,
+        relatedLectureTitles: relatedLectureIds.map((id) => lectureTitleById.get(id) ?? 'Lecture'),
       }
     })
 
@@ -129,6 +142,7 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =>
         fromConceptId: l.fromConceptId,
         toConceptId: l.toConceptId,
         lectureId: l.lectureId,
+        linkType: (l as { linkType?: string }).linkType ?? 'intra',
       })),
       meta: {
         hasLectures,
@@ -205,6 +219,52 @@ router.post('/quiz-attempts', requireAuth, async (req: AuthenticatedRequest, res
     res.status(201).json(attempt)
   } catch (error) {
     return sendRouteError(res, error, 'Failed to save quiz attempt.')
+  }
+})
+
+// GET /api/knowledge-graph/lecture-quiz-attempts/:lectureId
+router.get('/lecture-quiz-attempts/:lectureId', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user?.uid
+  const { lectureId } = req.params
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
+  try {
+    const attempts = await prisma.lectureQuizAttempt.findMany({
+      where: { userId, lectureId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    })
+    res.json({ attempts })
+  } catch (error) {
+    return sendRouteError(res, error, 'Failed to load quiz attempts.')
+  }
+})
+
+// POST /api/knowledge-graph/lecture-quiz-attempts
+router.post('/lecture-quiz-attempts', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user?.uid
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
+  const { lectureId, question, selectedAnswer, correctAnswer, isCorrect, difficulty } = req.body
+  if (!lectureId || !question || !selectedAnswer || !correctAnswer) {
+    return res.status(400).json({ error: 'Missing required lecture quiz attempt fields.' })
+  }
+
+  try {
+    const attempt = await prisma.lectureQuizAttempt.create({
+      data: {
+        userId,
+        lectureId: String(lectureId),
+        question: String(question),
+        selectedAnswer: String(selectedAnswer),
+        correctAnswer: String(correctAnswer),
+        isCorrect: Boolean(isCorrect),
+        difficulty: typeof difficulty === 'string' ? difficulty : 'medium',
+      },
+    })
+    res.status(201).json(attempt)
+  } catch (error) {
+    return sendRouteError(res, error, 'Failed to save lecture quiz attempt.')
   }
 })
 

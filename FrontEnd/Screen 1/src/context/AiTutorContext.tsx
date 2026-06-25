@@ -274,6 +274,10 @@ export function AiTutorProvider({ children }: { children: ReactNode }) {
         }
 
         let accumulated = ''
+        const lectureIds = selectedLectureId
+          ? [selectedLectureId]
+          : lectures.slice(0, 5).map((l) => l.id)
+
         await askTutorQuestionStream(trimmed, context, history, (chunk) => {
           accumulated += chunk
           setMessages((prev) => {
@@ -284,7 +288,7 @@ export function AiTutorProvider({ children }: { children: ReactNode }) {
             }
             return next
           })
-        })
+        }, lectureIds)
 
         // Done streaming successfully
         setMessages((prev) => {

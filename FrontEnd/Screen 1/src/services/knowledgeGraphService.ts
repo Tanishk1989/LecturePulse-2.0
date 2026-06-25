@@ -11,6 +11,8 @@ export interface KnowledgeGraphNode {
   mastery: number | null
   masteryTier: MasteryTier
   linkCount: number
+  relatedLectureIds?: string[]
+  relatedLectureTitles?: string[]
   x?: number
   y?: number
   radius?: number
@@ -21,6 +23,7 @@ export interface KnowledgeGraphLink {
   fromConceptId: string
   toConceptId: string
   lectureId: string
+  linkType?: 'intra' | 'cross'
 }
 
 export interface KnowledgeGraphResponse {

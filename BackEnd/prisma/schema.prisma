@@ -18,6 +18,7 @@ model Lecture {
   favorite         Boolean       @default(false)
   source           String        @default("upload")
   subject          String?
+  tags             Json          @default("[]")
   kgStatus         String        @default("pending") @map("kg_status")
   createdAt        DateTime      @default(now()) @map("created_at")
   updatedAt        DateTime      @default(now()) @updatedAt @map("updated_at")
@@ -28,8 +29,41 @@ model Lecture {
   kgConcepts       KgConcept[]
   kgLinks          KgLink[]
   studySessions    StudySession[]
+  ragChunks        RagChunk[]
+  shares           LectureShare[]
 
   @@map("lectures")
+}
+
+model LectureShare {
+  id         String    @id @default(uuid())
+  lectureId  String    @map("lecture_id")
+  userId     String    @map("user_id")
+  shareToken String    @unique @map("share_token")
+  allowMerge Boolean   @default(true) @map("allow_merge")
+  expiresAt  DateTime? @map("expires_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  lecture    Lecture   @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+
+  @@index([lectureId])
+  @@map("lecture_shares")
+}
+
+model RagChunk {
+  id         String   @id @default(uuid())
+  lectureId  String   @map("lecture_id")
+  userId     String   @map("user_id")
+  chunkIndex Int      @map("chunk_index")
+  text       String
+  embedding  Json
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  lecture    Lecture  @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+
+  @@index([lectureId])
+  @@index([userId])
+  @@map("rag_chunks")
 }
 
 model Transcript {
@@ -120,6 +154,7 @@ model KgLink {
   userId        String   @map("user_id")
   fromConceptId String   @map("from_concept_id")
   toConceptId   String   @map("to_concept_id")
+  linkType      String   @default("intra") @map("link_type")
   createdAt     DateTime @default(now()) @map("created_at")
 
   lecture     Lecture   @relation(fields: [lectureId], references: [id], onDelete: Cascade)
@@ -143,6 +178,20 @@ model ConceptQuizAttempt {
   concept KgConcept @relation(fields: [conceptId], references: [id], onDelete: Cascade)
 
   @@map("concept_quiz_attempts")
+}
+
+model LectureQuizAttempt {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  lectureId      String   @map("lecture_id")
+  question       String
+  selectedAnswer String   @map("selected_answer")
+  correctAnswer  String   @map("correct_answer")
+  isCorrect      Boolean  @map("is_correct")
+  difficulty     String   @default("medium")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("lecture_quiz_attempts")
 }
 
 model AiFeedback {

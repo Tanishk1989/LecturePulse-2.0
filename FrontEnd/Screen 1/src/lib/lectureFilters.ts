@@ -43,8 +43,25 @@ export function matchesLectureSearch(lecture: LectureRecording, query: string): 
 
   return (
     lecture.title.toLowerCase().includes(normalized) ||
-    (lecture.originalFilename?.toLowerCase().includes(normalized) ?? false)
+    (lecture.originalFilename?.toLowerCase().includes(normalized) ?? false) ||
+    (lecture.subject?.toLowerCase().includes(normalized) ?? false) ||
+    lecture.tags.some((tag) => tag.toLowerCase().includes(normalized))
   )
+}
+
+export function matchesTagFilter(lecture: LectureRecording, tag: string | null): boolean {
+  if (!tag) return true
+  return lecture.tags.includes(tag)
+}
+
+export function getAllLectureTags(lectures: LectureRecording[]): string[] {
+  const tags = new Set<string>()
+  for (const lecture of lectures) {
+    for (const tag of lecture.tags) {
+      tags.add(tag)
+    }
+  }
+  return Array.from(tags).sort((a, b) => a.localeCompare(b))
 }
 
 export function sortLectures(lectures: LectureRecording[], sort: LectureSort): LectureRecording[] {
@@ -74,13 +91,23 @@ export function filterAndSortLectures(
   query: string,
   filter: LectureFilter,
   sort: LectureSort,
+  tagFilter: string | null = null,
+  searchResultIds: Set<string> | null = null,
 ): LectureRecording[] {
-  return sortLectures(
-    lectures.filter(
-      (lecture) => matchesLectureFilter(lecture, filter) && matchesLectureSearch(lecture, query),
-    ),
-    sort,
-  )
+  const normalized = query.trim().toLowerCase()
+
+  const filtered = lectures.filter((lecture) => {
+    if (!matchesLectureFilter(lecture, filter)) return false
+    if (!matchesTagFilter(lecture, tagFilter)) return false
+
+    if (normalized.length >= 2 && searchResultIds) {
+      return searchResultIds.has(lecture.id)
+    }
+
+    return matchesLectureSearch(lecture, query)
+  })
+
+  return sortLectures(filtered, sort)
 }
 
 export const LECTURE_FILTER_OPTIONS: { value: LectureFilter; label: string }[] = [

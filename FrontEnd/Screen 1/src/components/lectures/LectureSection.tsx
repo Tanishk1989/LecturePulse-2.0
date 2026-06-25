@@ -10,6 +10,7 @@ interface LectureSectionProps {
   onDelete: (id: string) => void
   onRename: (id: string, title: string) => void
   onToggleFavorite: (id: string) => void
+  onUpdateTags: (id: string, tags: string[]) => void
 }
 
 export function LectureSection({
@@ -19,6 +20,7 @@ export function LectureSection({
   onDelete,
   onRename,
   onToggleFavorite,
+  onUpdateTags,
 }: LectureSectionProps) {
   if (lectures.length === 0) return null
 
@@ -38,6 +40,7 @@ export function LectureSection({
               onDelete={onDelete}
               onRename={onRename}
               onToggleFavorite={onToggleFavorite}
+              onUpdateTags={onUpdateTags}
             />
           ))}
         </AnimatePresence>

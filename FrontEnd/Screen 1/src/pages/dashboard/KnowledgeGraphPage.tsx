@@ -77,6 +77,19 @@ function NodeDetailPanel({
         )}
       </div>
 
+      {node.relatedLectureTitles && node.relatedLectureTitles.length > 0 && (
+        <div className="rounded-xl border border-sky-400/20 bg-sky-400/[0.06] px-4 py-3">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted mb-2">Also in</p>
+          <ul className="space-y-1">
+            {node.relatedLectureTitles.map((title) => (
+              <li key={title} className="text-sm text-foreground/90">
+                {title}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-3">
         <button
           type="button"
@@ -187,6 +200,7 @@ export function KnowledgeGraphPage() {
                         return null
                       }
 
+                      const isCross = link.linkType === 'cross'
                       const isActive =
                         !connectedIds ||
                         (connectedIds.has(link.fromConceptId) &&
@@ -200,12 +214,14 @@ export function KnowledgeGraphPage() {
                           x2={toNode.x}
                           y2={toNode.y}
                           stroke={
-                            isActive
-                              ? 'rgba(var(--color-accent-rgb),0.35)'
-                              : 'color-mix(in srgb, var(--border) 60%, transparent)'
+                            isCross
+                              ? 'rgba(56, 189, 248, 0.45)'
+                              : isActive
+                                ? 'rgba(var(--color-accent-rgb),0.35)'
+                                : 'color-mix(in srgb, var(--border) 60%, transparent)'
                           }
-                          strokeWidth={isActive ? 2 : 1}
-                          strokeDasharray="6 4"
+                          strokeWidth={isCross ? 2.5 : isActive ? 2 : 1}
+                          strokeDasharray={isCross ? '3 5' : '6 4'}
                           animate={prefersReducedMotion ? {} : { strokeDashoffset: [0, -10] }}
                           transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
                         />
@@ -323,6 +339,10 @@ export function KnowledgeGraphPage() {
                   <span className="text-xs text-muted">{label}</span>
                 </div>
               ))}
+              <div className="flex items-center gap-2">
+                <span className="h-0.5 w-5 rounded bg-sky-400/60" style={{ borderTop: '2px dashed rgba(56,189,248,0.6)' }} />
+                <span className="text-xs text-muted">Cross-lecture link</span>
+              </div>
             </div>
           </DashboardCard>
         </FadeUp>

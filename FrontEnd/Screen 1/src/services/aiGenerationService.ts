@@ -3,6 +3,7 @@ import { apiFetch, apiFetchStream } from '@/lib/api'
 import type { FlashcardInput } from '@/types/flashcard'
 import type { StructuredNotesContent } from '@/types/notes'
 import { getCachedProfile } from '@/services/profileService'
+import { quizDifficultyPrompt, type QuizDifficulty } from '@/lib/quizDifficulty'
 
 export type { FlashcardInput as Flashcard }
 
@@ -426,8 +427,8 @@ Constraints & Rules:
 4. Output JSON: Do not include markdown code block fences or any commentary. Output only the pure JSON string.
 5. Confidence Flagging: If any part of the source transcript is ambiguous, unclear, or could be a transcription error (e.g. a term that doesn't make sense in context, a number that seems inconsistent, or a sentence that's hard to interpret), do NOT guess or assume what was meant. Instead, mark that specific piece of content with the tag [unclear from audio] right after it. Never present uncertain or inferred information as a confirmed fact.`
 
-async function generateQuizForChunk(chunk: string): Promise<QuizQuestion[]> {
-  const userPrompt = `Create a quiz from this lecture transcript chunk:\n\n${chunk}`
+async function generateQuizForChunk(chunk: string, difficulty: QuizDifficulty = 'medium'): Promise<QuizQuestion[]> {
+  const userPrompt = `Create a quiz from this lecture transcript chunk.\n${quizDifficultyPrompt(difficulty)}\n\n${chunk}`
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const raw = await chatCompletion(
@@ -446,7 +447,7 @@ async function generateQuizForChunk(chunk: string): Promise<QuizQuestion[]> {
   return []
 }
 
-export async function generateQuiz(transcript: string): Promise<QuizQuestion[]> {
+export async function generateQuiz(transcript: string, difficulty: QuizDifficulty = 'medium'): Promise<QuizQuestion[]> {
   if (!transcript.trim()) {
     return []
   }
@@ -456,7 +457,7 @@ export async function generateQuiz(transcript: string): Promise<QuizQuestion[]> 
   let combinedQuizQuestions: QuizQuestion[] = []
 
   for (const chunk of chunks) {
-    const chunkQuestions = await generateQuizForChunk(chunk)
+    const chunkQuestions = await generateQuizForChunk(chunk, difficulty)
     combinedQuizQuestions = combinedQuizQuestions.concat(chunkQuestions)
   }
 
@@ -485,10 +486,13 @@ export async function generateConceptQuiz(
   conceptDescription: string,
   transcript: string,
   questionCount = 4,
+  difficulty: QuizDifficulty = 'medium',
 ): Promise<QuizQuestion[]> {
   if (!transcript.trim()) return []
 
   const systemPrompt = `${QUIZ_SYSTEM_PROMPT}
+
+${quizDifficultyPrompt(difficulty)}
 
 Additional constraints:
 - Generate exactly ${questionCount} questions focused ONLY on the concept "${conceptName}".
@@ -521,6 +525,28 @@ ${transcript.slice(0, 60000)}`
   }
 
   return []
+}
+
+export async function explainConcept(
+  term: string,
+  context: string,
+  transcriptText?: string,
+): Promise<string> {
+  const transcriptBlock = transcriptText?.trim()
+    ? `\n\nRelevant lecture transcript excerpt:\n${transcriptText.slice(0, 8000)}`
+    : ''
+
+  return chatCompletion(
+    [
+      'You are a friendly university study tutor.',
+      'Explain academic terms in simple, clear language for a student.',
+      'Use short paragraphs, everyday analogies when helpful, and avoid jargon unless you define it.',
+      'Ground your explanation in the provided lecture context only.',
+      'If the context is thin, give a brief general explanation and note what the lecture covered.',
+      'Always respond in English. Keep it to 2-4 short paragraphs.',
+    ].join('\n'),
+    `Explain the term "${term}" in simple language.\n\nNotes context:\n${context}${transcriptBlock}`,
+  )
 }
 
 export async function askAboutNotes(

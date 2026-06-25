@@ -11,6 +11,7 @@ import { LandingPage } from '@/pages/LandingPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { SignupPage } from '@/pages/SignupPage'
 import { DashboardRoutes } from '@/pages/dashboard/DashboardRoutes'
+import { SharedNotesPage } from '@/pages/dashboard/SharedNotesPage'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import { TranscriptPage } from '@/pages/dashboard/TranscriptPage'
 import { LectureNotesPage } from '@/pages/dashboard/LectureNotesPage'
@@ -20,7 +21,11 @@ import { useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { getCachedProfile, fetchUserProfile } from '@/services/profileService'
 import { getUserFlashcards } from '@/services/flashcardService'
+import { getUserLectures } from '@/services/lectureService'
 import { computeStudyStreak } from '@/lib/studyMetrics'
+import { countDueFlashcards } from '@/lib/flashcardStudy'
+import { loadUserPreferences } from '@/lib/userPreferences'
+import { loadTimetable } from '@/lib/timetable'
 
 function TranscriptRedirect() {
   const { lectureId } = useParams<{ lectureId: string }>()
@@ -81,6 +86,7 @@ function AppRoutes() {
   const isDashboard = location.pathname.startsWith('/dashboard')
   const isTranscript = location.pathname.startsWith('/transcript')
   const isNotes = location.pathname.startsWith('/notes')
+  const isShared = location.pathname.startsWith('/shared')
 
   if (isAuthPage) {
     return (
@@ -99,6 +105,21 @@ function AppRoutes() {
             <GuestRoute>
               <SignupPage />
             </GuestRoute>
+          }
+        />
+      </Routes>
+    )
+  }
+
+  if (isShared) {
+    return (
+      <Routes>
+        <Route
+          path="/shared/:token"
+          element={
+            <LectureProvider>
+              <SharedNotesPage />
+            </LectureProvider>
           }
         />
       </Routes>
@@ -186,30 +207,122 @@ function NotificationService() {
       const profile = getCachedProfile()
       if (!profile) return
 
+      const prefs = loadUserPreferences(user.uid)
+      const notificationsAllowed =
+        prefs.notifications.pushEnabled &&
+        'Notification' in window &&
+        Notification.permission === 'granted'
+
       const now = new Date()
       const currentHours = String(now.getHours()).padStart(2, '0')
       const currentMinutes = String(now.getMinutes()).padStart(2, '0')
       const currentTime = `${currentHours}:${currentMinutes}`
+      const todayStr = now.toDateString()
 
       // 1. Daily Study Reminder
       if (profile.dailyReminder && profile.dailyReminderTime === currentTime) {
-        const todayStr = now.toDateString()
         const lastReminder = localStorage.getItem('lecturepulse:last_study_reminder_date')
 
-        if (lastReminder !== todayStr) {
-          if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification('Study Reminder', {
-              body: 'Time to review your lectures! Keep your streak alive.',
-              icon: '/favicon.ico',
+        if (lastReminder !== todayStr && notificationsAllowed) {
+          void getUserFlashcards(user.uid)
+            .then((cards) => {
+              const dueCount = countDueFlashcards(cards, now)
+              const body =
+                dueCount > 0
+                  ? `You have ${dueCount} flashcard${dueCount === 1 ? '' : 's'} due today. Keep your streak alive!`
+                  : 'Time to review your lectures! Keep your streak alive.'
+
+              new Notification('Study Reminder', {
+                body,
+                icon: '/favicon.ico',
+              })
+              localStorage.setItem('lecturepulse:last_study_reminder_date', todayStr)
             })
-            localStorage.setItem('lecturepulse:last_study_reminder_date', todayStr)
-          }
+            .catch((err) => {
+              console.error('[NotificationService] Failed flashcard due check:', err)
+            })
         }
       }
 
-      // 2. Streak Alert (checked at 20:00 / 8 PM if user hasn't studied today)
+      // 2. Flashcard due reminder (9:00 AM) when push enabled
+      if (notificationsAllowed && currentTime === '09:00') {
+        const lastDueAlert = localStorage.getItem('lecturepulse:last_flashcard_due_date')
+        if (lastDueAlert !== todayStr) {
+          void getUserFlashcards(user.uid)
+            .then((cards) => {
+              const dueCount = countDueFlashcards(cards, now)
+              if (dueCount > 0) {
+                new Notification('Flashcards due', {
+                  body: `${dueCount} card${dueCount === 1 ? '' : 's'} due for review today.`,
+                  icon: '/favicon.ico',
+                })
+                localStorage.setItem('lecturepulse:last_flashcard_due_date', todayStr)
+              }
+            })
+            .catch((err) => {
+              console.error('[NotificationService] Failed flashcard due alert:', err)
+            })
+        }
+      }
+
+      // 3. Notes ready notifications
+      if (notificationsAllowed && prefs.notifications.notesReady && currentTime === '09:05') {
+        const notifiedKey = 'lecturepulse:notified_notes_ready'
+        const notifiedRaw = localStorage.getItem(notifiedKey)
+        const notifiedIds = new Set<string>(
+          notifiedRaw ? (JSON.parse(notifiedRaw) as string[]) : [],
+        )
+
+        void getUserLectures(user.uid)
+          .then((lectures) => {
+            const newlyReady = lectures.filter(
+              (lecture) => lecture.status === 'completed' && !notifiedIds.has(lecture.id),
+            )
+            if (newlyReady.length === 0) return
+
+            const latest = newlyReady[0]
+            new Notification('Notes ready', {
+              body: `"${latest.title}" is ready to study.`,
+              icon: '/favicon.ico',
+            })
+
+            newlyReady.forEach((lecture) => notifiedIds.add(lecture.id))
+            localStorage.setItem(notifiedKey, JSON.stringify([...notifiedIds]))
+          })
+          .catch((err) => {
+            console.error('[NotificationService] Failed notes ready check:', err)
+          })
+      }
+
+      // 4. Weekly digest (Sunday 9:30)
+      if (
+        notificationsAllowed &&
+        prefs.notifications.weeklyDigest &&
+        now.getDay() === 0 &&
+        currentTime === '09:30'
+      ) {
+        const weekKey = `lecturepulse:weekly_digest:${now.getFullYear()}-W${Math.ceil(now.getDate() / 7)}`
+        if (localStorage.getItem(weekKey) !== todayStr) {
+          void Promise.all([getUserFlashcards(user.uid), getUserLectures(user.uid)])
+            .then(([cards, lectures]) => {
+              const dueCount = countDueFlashcards(cards, now)
+              const streakDays = computeStudyStreak(cards, now)
+              const completed = lectures.filter((lecture) => lecture.status === 'completed').length
+
+              new Notification('Weekly study digest', {
+                body: `${dueCount} cards due · ${streakDays}-day streak · ${completed} lectures completed.`,
+                icon: '/favicon.ico',
+              })
+              localStorage.setItem(weekKey, todayStr)
+            })
+            .catch((err) => {
+              console.error('[NotificationService] Failed weekly digest:', err)
+            })
+        }
+      }
+
+      // 5. Streak Alert (checked at 20:00 / 8 PM if user hasn't studied today)
       if (profile.streakAlerts && currentTime === '20:00') {
-        const todayStr = now.toDateString()
         const lastStreakAlert = localStorage.getItem('lecturepulse:last_streak_alert_date')
 
         if (lastStreakAlert !== todayStr) {
@@ -227,19 +340,35 @@ function NotificationService() {
 
               const streakDays = computeStudyStreak(cards, now)
 
-              if (streakDays > 0 && !studiedToday) {
-                if ('Notification' in window && Notification.permission === 'granted') {
-                  new Notification('Streak Alert!', {
-                    body: `Don't lose your ${streakDays}-day study streak! Review some flashcards today to keep it active.`,
-                    icon: '/favicon.ico',
-                  })
-                  localStorage.setItem('lecturepulse:last_streak_alert_date', todayStr)
-                }
+              if (streakDays > 0 && !studiedToday && notificationsAllowed) {
+                new Notification('Streak Alert!', {
+                  body: `Don't lose your ${streakDays}-day study streak! Review some flashcards today to keep it active.`,
+                  icon: '/favicon.ico',
+                })
+                localStorage.setItem('lecturepulse:last_streak_alert_date', todayStr)
               }
             })
             .catch((err) => {
               console.error('[NotificationService] Failed to check streak cards:', err)
             })
+        }
+      }
+      // 6. Timetable class reminders
+      if (notificationsAllowed && user) {
+        const timetableEntries = loadTimetable(user.uid).filter((entry) => entry.autoRecordReminder)
+        const todayClasses = timetableEntries.filter((entry) => entry.dayOfWeek === now.getDay())
+
+        for (const entry of todayClasses) {
+          if (currentTime !== entry.startTime) continue
+
+          const reminderKey = `lecturepulse:timetable_alert:${entry.id}:${todayStr}`
+          if (localStorage.getItem(reminderKey)) continue
+
+          new Notification('Class starting', {
+            body: `${entry.title} begins now. Tap to start recording.`,
+            icon: '/favicon.ico',
+          })
+          localStorage.setItem(reminderKey, '1')
         }
       }
     }, 60000)

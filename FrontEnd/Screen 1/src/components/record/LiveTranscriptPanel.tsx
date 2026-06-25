@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useReducedMotion } from 'framer-motion'
 import { AlertCircle, Loader2 } from 'lucide-react'
 import type { LiveTranscriptChunk } from '@/hooks/useLiveTranscription'
+import { SpeakerBadge } from '@/components/transcript/SpeakerBadge'
 import { cn } from '@/lib/utils'
 
 interface LiveTranscriptPanelProps {
@@ -84,6 +85,7 @@ export function LiveTranscriptPanel({
         <p className="text-[10px] font-semibold tracking-[0.22em] uppercase text-accent/80">
           Live Captions
         </p>
+        <p className="mt-0.5 text-[11px] text-muted">Professor vs student detection active</p>
       </div>
 
       <div
@@ -102,7 +104,10 @@ export function LiveTranscriptPanel({
 
             if (!isLatest) {
               return (
-                <span key={chunk.id} className="text-foreground/95">
+                <span key={chunk.id} className="inline text-foreground/95">
+                  {chunk.speaker && chunk.speaker !== 'unknown' && (
+                    <SpeakerBadge speaker={chunk.speaker} compact className="mr-1.5 align-middle" />
+                  )}
                   {chunk.text}{' '}
                 </span>
               )
@@ -111,7 +116,10 @@ export function LiveTranscriptPanel({
             const revealedText = latestTokens.slice(0, revealedTokenIndex).join('')
 
             return (
-              <span key={chunk.id} className="text-foreground/95">
+              <span key={chunk.id} className="inline text-foreground/95">
+                {chunk.speaker && chunk.speaker !== 'unknown' && (
+                  <SpeakerBadge speaker={chunk.speaker} compact className="mr-1.5 align-middle" />
+                )}
                 {revealedText}
               </span>
             )

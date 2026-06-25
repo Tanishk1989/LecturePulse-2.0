@@ -19,6 +19,7 @@ import { generateFlashcards } from '@/services/aiGenerationService'
 import { createFlashcards } from '@/services/flashcardService'
 import { useTypewriter } from '@/components/effects/TypewriterText'
 import { MarkdownRenderer, renderInlineText } from '@/components/shared/MarkdownRenderer'
+import { ClickableTerm } from '@/components/notes/ConceptExplainerDialog'
 import { FeedbackControls } from '@/components/shared/FeedbackControls'
 import type {
   Definition,
@@ -379,7 +380,13 @@ export function ConceptsSection({
                         'hover:shadow-[0_0_32px_rgba(var(--color-accent-rgb),0.08)]',
                       )}
                     >
-                      <h3 className="text-sm font-semibold text-foreground">{concept.title}</h3>
+                      <h3 className="text-sm font-semibold text-foreground">
+                        <ClickableTerm
+                          term={concept.title}
+                          context={`${concept.title}: ${concept.explanation}\n\nWhy it matters: ${concept.importance}`}
+                          transcriptText={transcriptText}
+                        />
+                      </h3>
                       <p className="mt-2 text-sm leading-relaxed text-foreground/70">
                         {renderInlineText(displayedExplanation, showCursor)}
                       </p>
@@ -431,9 +438,11 @@ export function ConceptsSection({
 export function DefinitionsSection({
   definitions,
   lectureId,
+  transcriptText,
 }: {
   definitions: Definition[]
   lectureId: string
+  transcriptText?: string | null
 }) {
   const blocks = useMemo(() => definitions.map((d) => d.definition), [definitions])
   const { displayedBlocks, currentBlockIndex, isComplete, skip } = useTypewriter(
@@ -466,7 +475,14 @@ export function DefinitionsSection({
                   transition={{ duration: 0.2 }}
                   className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5"
                 >
-                  <p className="text-base font-semibold text-accent">{renderInlineText(def.term)}</p>
+                  <p className="text-base font-semibold text-accent">
+                    <ClickableTerm
+                      term={def.term}
+                      context={`${def.term}: ${def.definition}\n\nExample: ${def.example}`}
+                      transcriptText={transcriptText}
+                      className="text-accent font-semibold"
+                    />
+                  </p>
                   <p className="mt-2 text-sm leading-relaxed text-foreground/70">
                     {renderInlineText(displayedDef, showCursor)}
                   </p>

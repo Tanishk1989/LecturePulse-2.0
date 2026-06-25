@@ -1,10 +1,14 @@
 export type TranscriptStatus = 'processing' | 'completed' | 'failed'
 
+export type SpeakerRole = 'professor' | 'student' | 'unknown'
+
 export interface TranscriptSegment {
   id: number
   start: number
   end: number
   text: string
+  speaker?: SpeakerRole
+  voiceCluster?: number
 }
 
 export interface TranscriptRow {

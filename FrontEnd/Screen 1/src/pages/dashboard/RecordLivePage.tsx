@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { Check, Mic } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ParticleField } from '@/components/effects/ParticleField'
 import { LiveRecordingMic } from '@/components/record/LiveRecordingMic'
 import { LiveNotesDraftPanel } from '@/components/record/LiveNotesDraftPanel'
@@ -24,6 +24,10 @@ import {
 } from '@/services/aiGenerationService'
 import { createFlashcards } from '@/services/flashcardService'
 import { triggerLectureProcessing } from '@/services/processingService'
+import { getProcessingOptions } from '@/lib/processingPreferences'
+import { queueOfflineRecording } from '@/lib/offlineQueue'
+import { useOnlineStatus } from '@/hooks/useOnlineStatus'
+import { useI18n } from '@/context/I18nContext'
 import { formatDuration } from '@/lib/formatDuration'
 import { cn } from '@/lib/utils'
 
@@ -58,7 +62,10 @@ const SUBJECTS = [
 
 export function RecordLivePage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { user } = useAuthContext()
+  const online = useOnlineStatus()
+  const { translate } = useI18n()
   const { openTutor } = useDashboard()
   const { toast } = useToast()
   const { uploadLecture } = useLectures()
@@ -86,6 +93,7 @@ export function RecordLivePage() {
     resetAll,
     retryTranscription,
     saveTranscript,
+    refineSpeakers,
   } = useLiveTranscription(user?.uid)
 
   const liveNotes = useLiveNotesDraft(fullText, status === 'recording')
@@ -100,6 +108,18 @@ export function RecordLivePage() {
   )
   const [askAiEnabled, setAskAiEnabled] = useState(false)
   const processingRef = useRef(false)
+  const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+
+  useEffect(() => {
+    const subject = searchParams.get('subject')?.trim()
+    if (!subject) return
+    if (SUBJECTS.includes(subject)) {
+      setSubjectSelect(subject)
+    } else {
+      setSubjectSelect('other')
+      setCustomSubject(subject)
+    }
+  }, [searchParams])
 
   const isActiveSession =
     permission === 'granted' && (status === 'recording' || status === 'paused')
@@ -113,6 +133,14 @@ export function RecordLivePage() {
     }
     await startLiveRecording()
   }, [startLiveRecording, toast, user])
+
+  const autostartAttempted = useRef(false)
+  useEffect(() => {
+    if (searchParams.get('autostart') !== '1' || autostartAttempted.current) return
+    if (!user || status !== 'idle' || phase !== 'idle') return
+    autostartAttempted.current = true
+    void handleStart()
+  }, [searchParams, user, status, phase, handleStart])
 
   const handleStop = useCallback(async () => {
     await stopLiveRecording()
@@ -131,8 +159,34 @@ export function RecordLivePage() {
       let lectureId: string | null = null
 
       try {
+        const subjectVal = subjectSelect === 'other' ? customSubject.trim() : subjectSelect
+
+        if (!online) {
+          if (!user) {
+            toast.error('Sign in to save recordings for offline sync.')
+            setPhase('idle')
+            processingRef.current = false
+            return
+          }
+
+          await queueOfflineRecording({
+            id: crypto.randomUUID(),
+            title: liveTranscriptText
+              ? liveTranscriptText.slice(0, 60) + (liveTranscriptText.length > 60 ? '…' : '')
+              : '🎙 Offline Recording',
+            duration: elapsedSeconds,
+            subject: subjectVal || undefined,
+            mimeType: audioBlob.type || 'audio/webm',
+            transcriptText: liveTranscriptText || undefined,
+            createdAt: new Date().toISOString(),
+            blob: audioBlob,
+          })
+          toast.success('Recording saved offline. It will upload when you reconnect.')
+          setPhase('done')
+          return
+        }
+
         if (user) {
-          const subjectVal = subjectSelect === 'other' ? customSubject.trim() : subjectSelect
           const saved = await uploadLecture({
             title: transcriptText
               ? transcriptText.slice(0, 60) + (transcriptText.length > 60 ? '…' : '')
@@ -150,13 +204,15 @@ export function RecordLivePage() {
             lectureId = saved.id
             setSavedLectureId(saved.id)
             if (transcriptText) {
+              await refineSpeakers(subjectVal || undefined)
               await saveTranscript(user.uid, saved.id, elapsedSeconds)
               void triggerLectureProcessing(saved.id, {
                 generateNotes: true,
                 forceRetranscribe: false,
+                ...getProcessingOptions(user.uid),
               })
             } else {
-              void triggerLectureProcessing(saved.id)
+              void triggerLectureProcessing(saved.id, getProcessingOptions(user.uid))
             }
           }
         }
@@ -218,6 +274,7 @@ export function RecordLivePage() {
     uploadLecture,
     toast,
     saveTranscript,
+    refineSpeakers,
   ])
 
   const handleRecordAnother = useCallback(() => {
@@ -360,6 +417,11 @@ export function RecordLivePage() {
                   <p className="mt-2 max-w-sm text-sm text-muted leading-relaxed">
                     LecturePulse will listen.
                   </p>
+                  {isMobileDevice && (
+                    <p className="mt-3 max-w-sm text-xs text-accent/80 leading-relaxed">
+                      {translate('record.mobileTip')}
+                    </p>
+                  )}
 
                   <div className="mt-6 w-full rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 text-left">
                     <label

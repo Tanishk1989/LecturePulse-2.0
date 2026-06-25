@@ -18,6 +18,7 @@ export interface LectureRow {
   created_at: string
   source?: LectureSource
   subject?: string | null
+  tags?: string[]
 }
 
 export interface LectureRecording {
@@ -36,6 +37,7 @@ export interface LectureRecording {
   favorite: boolean
   thumbnail?: string | null
   subject?: string | null
+  tags: string[]
 }
 
 export interface CreateLectureInput {
@@ -52,6 +54,7 @@ export interface CreateLectureInput {
   pageCount?: number | null
   originalFilename?: string
   subject?: string | null
+  tags?: string[]
 }
 
 export interface UploadLectureInput {
@@ -78,11 +81,17 @@ export type LectureFilter =
 
 export type LectureSort = 'newest' | 'oldest' | 'title-asc' | 'title-desc' | 'duration'
 
+function parseTags(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  return raw.filter((tag): tag is string => typeof tag === 'string' && tag.trim().length > 0)
+}
+
 export function mapRowToLecture(row: LectureRow): LectureRecording {
   const record = row as LectureRow & {
     createdAt?: string
     fileUrl?: string
     fileType?: LectureDbType
+    tags?: unknown
   }
 
   return {
@@ -96,5 +105,6 @@ export function mapRowToLecture(row: LectureRow): LectureRecording {
     mediaKind: row.file_type ?? record.fileType ?? 'audio',
     favorite: row.favorite ?? false,
     subject: row.subject ?? null,
+    tags: parseTags(row.tags ?? record.tags),
   }
 }

@@ -19,6 +19,12 @@ import { HelpPage } from '@/pages/dashboard/HelpPage'
 import { WhatsNewPage } from '@/pages/dashboard/WhatsNewPage'
 import { StreakPage } from '@/pages/dashboard/StreakPage'
 import { ExamCountdownPage } from '@/pages/dashboard/ExamCountdownPage'
+import { SearchPage } from '@/pages/dashboard/SearchPage'
+import { RevisionTimelinePage } from '@/pages/dashboard/RevisionTimelinePage'
+import { QuizPage } from '@/pages/dashboard/QuizPage'
+import { RoadmapPage } from '@/pages/dashboard/RoadmapPage'
+import { TimetablePage } from '@/pages/dashboard/TimetablePage'
+import { InstitutionDashboardPage } from '@/pages/dashboard/InstitutionDashboardPage'
 
 export function DashboardRoutes() {
   return (
@@ -29,6 +35,12 @@ export function DashboardRoutes() {
         <Route path="notes" element={<SmartNotesPage />} />
         <Route path="summary" element={<SummaryPage />} />
         <Route path="flashcards" element={<FlashcardsPage />} />
+        <Route path="quiz" element={<QuizPage />} />
+        <Route path="revision" element={<RevisionTimelinePage />} />
+        <Route path="roadmap" element={<RoadmapPage />} />
+        <Route path="timetable" element={<TimetablePage />} />
+        <Route path="institution" element={<InstitutionDashboardPage />} />
+        <Route path="search" element={<SearchPage />} />
         <Route path="knowledge-graph" element={<KnowledgeGraphPage />} />
         <Route path="ai-tutor" element={<AITutorPage />} />
         <Route path="exam-focus" element={<ExamFocusPage />} />

@@ -7,6 +7,13 @@ import { generateConceptQuiz, type QuizQuestion } from '@/services/aiGenerationS
 import { saveConceptQuizAttempt } from '@/services/knowledgeGraphService'
 import { getTranscriptByLectureId } from '@/services/transcriptService'
 import type { KnowledgeGraphNode } from '@/services/knowledgeGraphService'
+import type { QuizDifficulty } from '@/lib/quizDifficulty'
+
+function masteryToDifficulty(node: KnowledgeGraphNode): QuizDifficulty {
+  if (node.mastery === null || node.mastery < 40) return 'easy'
+  if (node.mastery >= 70) return 'hard'
+  return 'medium'
+}
 
 interface ConceptQuizDialogProps {
   node: KnowledgeGraphNode
@@ -37,7 +44,8 @@ export function ConceptQuizDialog({ node, onClose, onComplete }: ConceptQuizDial
         return
       }
 
-      const quiz = await generateConceptQuiz(node.name, node.description, text, 4)
+      const quizDifficulty = masteryToDifficulty(node)
+      const quiz = await generateConceptQuiz(node.name, node.description, text, 4, quizDifficulty)
       if (quiz.length === 0) {
         toast.error('Could not generate quiz questions for this concept.')
         onClose()

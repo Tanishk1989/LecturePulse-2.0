@@ -40,7 +40,13 @@ export function NotesSectionContent({
         />
       )
     case 'definitions':
-      return <DefinitionsSection definitions={content.definitions} lectureId={lectureId} />
+      return (
+        <DefinitionsSection
+          definitions={content.definitions}
+          lectureId={lectureId}
+          transcriptText={transcriptText}
+        />
+      )
     case 'mind-map':
       return (
         <MindMapSection

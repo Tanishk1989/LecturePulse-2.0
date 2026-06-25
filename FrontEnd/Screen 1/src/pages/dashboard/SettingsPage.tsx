@@ -17,6 +17,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useLectures } from '@/hooks/useLectures'
 import { useToast } from '@/components/ui/ToastProvider'
 import { useTheme } from '@/context/ThemeContext'
+import { useI18n } from '@/context/I18nContext'
 import { loadUserPreferences, saveUserPreferences } from '@/lib/userPreferences'
 import { exportUserDataArchive } from '@/services/dataExportService'
 import { fetchUserProfile, updateUserProfile, type UserProfile } from '@/services/profileService'
@@ -77,6 +78,7 @@ export function SettingsPage() {
   const { lectures } = useLectures()
   const { toast } = useToast()
   const { themePreference, setThemePreference, fontSize, setFontSize } = useTheme()
+  const { setLocale, translate } = useI18n()
   const [searchParams, setSearchParams] = useSearchParams()
   const [prefs, setPrefs] = useState<UserPreferences | null>(null)
   const [dbProfile, setDbProfile] = useState<UserProfile | null>(null)
@@ -241,14 +243,16 @@ export function SettingsPage() {
             </label>
 
             <label className="block">
-              <span className="text-xs font-medium text-muted">Language</span>
+              <span className="text-xs font-medium text-muted">{translate('settings.language')}</span>
               <div className="relative mt-1.5">
                 <Globe className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
                 <select
                   value={prefs.general.language}
-                  onChange={(e) =>
-                    updatePrefs({ general: { ...prefs.general, language: e.target.value } })
-                  }
+                  onChange={(e) => {
+                    const language = e.target.value
+                    updatePrefs({ general: { ...prefs.general, language } })
+                    setLocale(language === 'hi' ? 'hi' : 'en')
+                  }}
                   className="w-full appearance-none rounded-xl border border-white/[0.08] bg-white/[0.03] py-2.5 pl-10 pr-4 text-sm text-foreground outline-none focus:border-accent/30 cursor-pointer"
                 >
                   <option value="en" className="bg-card">English</option>
@@ -486,7 +490,7 @@ export function SettingsPage() {
             )}
 
             <label className="block">
-              <span className="text-xs font-medium text-muted">Default transcription language</span>
+              <span className="text-xs font-medium text-muted">{translate('settings.transcriptionLanguage')}</span>
               <select
                 value={prefs.ai.transcriptionLanguage}
                 onChange={(e) =>

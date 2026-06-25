@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react'
-import { ArrowLeft, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Download, RefreshCw } from 'lucide-react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { FadeUp } from '@/components/effects/FadeUp'
 import { NotesEmptyState } from '@/components/notes/NotesEmptyState'
@@ -13,12 +13,17 @@ import { getLectureMediaKind } from '@/lib/lectureFilters'
 import { dashboardPageTitleClass } from '@/components/dashboard/ui/DashboardPageShell'
 import { useToast } from '@/components/ui/ToastProvider'
 import { recordStudySession } from '@/services/streakService'
+import { exportLectureNotes } from '@/services/noteExportService'
+import { formatNotesForCopy } from '@/services/aiGenerationService'
+import { TranslateContentButton } from '@/components/shared/TranslateContentButton'
+import { ShareNotesButton } from '@/components/notes/ShareNotesButton'
 import { cn } from '@/lib/utils'
 
 export function LectureNotesPage() {
   const { lectureId } = useParams<{ lectureId: string }>()
   const { lectures, loading: lecturesLoading } = useLectures()
   const [activeSection, setActiveSection] = useState<NoteSectionId>('summary')
+  const [exportOpen, setExportOpen] = useState(false)
   const { toast } = useToast()
 
   const lecture = useMemo(
@@ -132,19 +137,78 @@ export function LectureNotesPage() {
           </div>
 
           {showNotes && (
-            <button
-              type="button"
-              onClick={() => void generateNotes()}
-              disabled={isGenerating || !canGenerate}
-              className={cn(
-                'inline-flex items-center gap-2 rounded-full border border-white/[0.12] px-5 py-2.5',
-                'text-sm font-medium text-foreground bg-white/[0.03] transition-all cursor-pointer',
-                'hover:border-accent/25 hover:bg-accent/[0.06] disabled:opacity-50',
+            <div className="flex flex-wrap items-center gap-2">
+              {notes?.content && (
+                <TranslateContentButton
+                  sourceText={formatNotesForCopy(notes.content)}
+                  contextLabel="lecture notes"
+                />
               )}
-            >
-              <RefreshCw className={cn('h-4 w-4', isGenerating && 'animate-spin')} />
-              Regenerate
-            </button>
+              {lectureId && <ShareNotesButton lectureId={lectureId} />}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setExportOpen((open) => !open)}
+                  className={cn(
+                    'inline-flex items-center gap-2 rounded-full border border-white/[0.12] px-5 py-2.5',
+                    'text-sm font-medium text-foreground bg-white/[0.03] transition-all cursor-pointer',
+                    'hover:border-accent/25 hover:bg-accent/[0.06]',
+                  )}
+                >
+                  <Download className="h-4 w-4" />
+                  Export
+                </button>
+                {exportOpen && notes?.content && (
+                  <div className="absolute right-0 z-20 mt-2 w-44 rounded-xl border border-white/[0.08] bg-card p-1 shadow-xl">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        exportLectureNotes(
+                          lecture?.title ?? 'Lecture',
+                          notes.content,
+                          'markdown',
+                          lecture?.subject,
+                        )
+                        setExportOpen(false)
+                        toast.success('Markdown file downloaded.')
+                      }}
+                      className="w-full rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-white/[0.04] cursor-pointer"
+                    >
+                      Markdown (.md)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        exportLectureNotes(
+                          lecture?.title ?? 'Lecture',
+                          notes.content,
+                          'pdf',
+                          lecture?.subject,
+                        )
+                        setExportOpen(false)
+                        toast.success('Print dialog opened for PDF save.')
+                      }}
+                      className="w-full rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-white/[0.04] cursor-pointer"
+                    >
+                      PDF (print)
+                    </button>
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => void generateNotes()}
+                disabled={isGenerating || !canGenerate}
+                className={cn(
+                  'inline-flex items-center gap-2 rounded-full border border-white/[0.12] px-5 py-2.5',
+                  'text-sm font-medium text-foreground bg-white/[0.03] transition-all cursor-pointer',
+                  'hover:border-accent/25 hover:bg-accent/[0.06] disabled:opacity-50',
+                )}
+              >
+                <RefreshCw className={cn('h-4 w-4', isGenerating && 'animate-spin')} />
+                Regenerate
+              </button>
+            </div>
           )}
         </div>
       </FadeUp>

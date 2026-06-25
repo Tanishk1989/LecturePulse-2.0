@@ -1,0 +1,26 @@
+{
+  "name": "LecturePulse",
+  "short_name": "LecturePulse",
+  "description": "Turn lectures into mastery with AI notes, flashcards, and quizzes.",
+  "start_url": "/dashboard/record",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#d4a853",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["education", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Record Live",
+      "url": "/dashboard/record",
+      "description": "Start a live lecture recording"
+    }
+  ]
+}

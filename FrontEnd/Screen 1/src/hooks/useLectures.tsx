@@ -18,6 +18,7 @@ import {
   uploadLecture as uploadLectureService,
 } from '@/services/lectureService'
 import { triggerLectureProcessing } from '@/services/processingService'
+import { getProcessingOptions } from '@/lib/processingPreferences'
 import type { YouTubeVideoMetadata } from '@/lib/youtubeUtils'
 import type { LectureMediaKind, LectureRecording } from '@/types/lecture'
 
@@ -44,6 +45,7 @@ interface LecturesContextValue {
   importYouTube: (metadata: YouTubeVideoMetadata, subject?: string) => Promise<LectureRecording | null>
   deleteLecture: (id: string) => Promise<void>
   updateLectureTitle: (id: string, title: string) => Promise<void>
+  updateLectureTags: (id: string, tags: string[]) => Promise<void>
   toggleFavorite: (id: string) => Promise<void>
   refresh: () => Promise<void>
 }
@@ -120,7 +122,7 @@ function useLecturesState(): LecturesContextValue {
         setLectures((current) => [saved, ...current.filter((item) => item.id !== saved.id)])
         toast.success('Lecture uploaded successfully.')
         if (!input.skipProcessing) {
-          void triggerLectureProcessing(saved.id)
+          void triggerLectureProcessing(saved.id, getProcessingOptions(user.uid))
         }
         return saved
       } catch (error) {
@@ -150,7 +152,7 @@ function useLecturesState(): LecturesContextValue {
 
         setLectures((current) => [saved, ...current.filter((item) => item.id !== saved.id)])
         toast.success('YouTube video imported successfully.')
-        void triggerLectureProcessing(saved.id)
+        void triggerLectureProcessing(saved.id, getProcessingOptions(user.uid))
         return saved
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Import failed.'
@@ -221,6 +223,23 @@ function useLecturesState(): LecturesContextValue {
     [lectures, toast, user],
   )
 
+  const updateLectureTags = useCallback(
+    async (id: string, tags: string[]) => {
+      if (!user) return
+
+      try {
+        const updated = await updateLectureService(user.uid, id, { tags })
+        setLectures((current) =>
+          current.map((item) => (item.id === id ? { ...item, ...updated } : item)),
+        )
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to update tags.'
+        toast.error(message)
+      }
+    },
+    [toast, user],
+  )
+
   return useMemo(
     () => ({
       lectures,
@@ -230,10 +249,11 @@ function useLecturesState(): LecturesContextValue {
       importYouTube,
       deleteLecture,
       updateLectureTitle,
+      updateLectureTags,
       toggleFavorite,
       refresh,
     }),
-    [lectures, loading, error, uploadLecture, importYouTube, deleteLecture, updateLectureTitle, toggleFavorite, refresh],
+    [lectures, loading, error, uploadLecture, importYouTube, deleteLecture, updateLectureTitle, updateLectureTags, toggleFavorite, refresh],
   )
 }
 

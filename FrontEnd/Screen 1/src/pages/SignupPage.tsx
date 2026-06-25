@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
 import { AuthLayout } from '@/components/auth/AuthLayout'
@@ -13,24 +13,57 @@ import { getAuthErrorMessage } from '@/lib/authErrors'
 export function SignupPage() {
   const prefersReducedMotion = useReducedMotion()
   const navigate = useNavigate()
-  const { signInWithGoogle } = useAuth()
+  const { signInWithGoogle, signUpWithEmail } = useAuth()
   const { toast } = useToast()
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
+  const [isEmailLoading, setIsEmailLoading] = useState(false)
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
 
   const handleGoogleSignIn = async () => {
-    console.log('[SignupPage] Continue with Google clicked')
-
     setIsGoogleLoading(true)
-
     try {
       await signInWithGoogle()
-      console.log('[SignupPage] Google sign-in successful')
       navigate('/dashboard')
     } catch (error) {
-      console.error('[SignupPage] Google sign-in failed:', error)
       toast.error(getAuthErrorMessage(error))
     } finally {
       setIsGoogleLoading(false)
+    }
+  }
+
+  const handleEmailSignUp = async (event: FormEvent) => {
+    event.preventDefault()
+
+    if (!acceptedTerms) {
+      toast.error('Please accept the Terms and Privacy policy.')
+      return
+    }
+    if (!email.trim() || !password) {
+      toast.error('Enter your email and password.')
+      return
+    }
+    if (password.length < 6) {
+      toast.error('Password must be at least 6 characters.')
+      return
+    }
+    if (password !== confirmPassword) {
+      toast.error('Passwords do not match.')
+      return
+    }
+
+    setIsEmailLoading(true)
+    try {
+      await signUpWithEmail(email, password, name)
+      toast.success('Account created successfully.')
+      navigate('/dashboard')
+    } catch (error) {
+      toast.error(getAuthErrorMessage(error))
+    } finally {
+      setIsEmailLoading(false)
     }
   }
 
@@ -63,19 +96,44 @@ export function SignupPage() {
           </AuthStaggerItem>
 
           <AuthStaggerItem>
-            <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
-              <FloatingInput label="Name" type="text" autoComplete="name" />
-              <FloatingInput label="Email" type="email" autoComplete="email" />
-              <FloatingInput label="Password" type="password" autoComplete="new-password" />
+            <form className="space-y-4" onSubmit={(e) => void handleEmailSignUp(e)}>
+              <FloatingInput
+                label="Name"
+                type="text"
+                autoComplete="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+              <FloatingInput
+                label="Email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+              <FloatingInput
+                label="Password"
+                type="password"
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
               <FloatingInput
                 label="Confirm Password"
                 type="password"
                 autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
               />
 
               <label className="flex cursor-pointer items-start gap-3 pt-1">
                 <input
                   type="checkbox"
+                  checked={acceptedTerms}
+                  onChange={(e) => setAcceptedTerms(e.target.checked)}
                   className="auth-checkbox mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-white/20 bg-[#0A0A0A] accent-accent"
                 />
                 <span className="text-xs leading-relaxed text-muted">
@@ -93,12 +151,13 @@ export function SignupPage() {
 
               <motion.button
                 type="submit"
-                className="auth-primary-btn mt-2 h-12 w-full rounded-xl bg-accent text-sm font-semibold text-[#050505] cursor-pointer"
+                disabled={isEmailLoading}
+                className="auth-primary-btn mt-2 h-12 w-full rounded-xl bg-accent text-sm font-semibold text-[#050505] cursor-pointer disabled:opacity-60"
                 whileHover={prefersReducedMotion ? undefined : { scale: 1.02 }}
                 whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
                 transition={{ duration: 0.3, ease: 'easeOut' }}
               >
-                Create Account
+                {isEmailLoading ? 'Creating account…' : 'Create Account'}
               </motion.button>
             </form>
           </AuthStaggerItem>

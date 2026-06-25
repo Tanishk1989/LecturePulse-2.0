@@ -4,7 +4,10 @@ import type { DetectedLanguageLabel } from '@/lib/webSpeechRecognition'
 import { useMediaRecorder } from '@/hooks/useMediaRecorder'
 import { createTranscript, updateTranscript } from '@/services/transcriptionService'
 import { transcribeLiveAudioChunk } from '@/services/liveTranscriptionService'
-import type { TranscriptSegment } from '@/types/transcript'
+import { detectSpeakers } from '@/services/speakerDetectionService'
+import { analyzeVoiceProfile, VoiceClusterTracker } from '@/lib/audioVoiceProfile'
+import { classifySegmentHeuristic } from '@/lib/speakerHeuristics'
+import type { SpeakerRole, TranscriptSegment } from '@/types/transcript'
 import { formatDuration } from '@/lib/formatDuration'
 
 export interface LiveTranscriptChunk {
@@ -13,6 +16,7 @@ export interface LiveTranscriptChunk {
   timestampLabel: string
   text: string
   isInterim?: boolean
+  speaker?: SpeakerRole
 }
 
 const LIVE_CHUNK_INTERVAL_MS = 7000
@@ -59,45 +63,53 @@ export function useLiveTranscription(userId?: string | null) {
   const queueRef = useRef<Promise<void>>(Promise.resolve())
   const sessionIdRef = useRef(crypto.randomUUID())
   const userIdRef = useRef(userId ?? null)
+  const voiceTrackerRef = useRef(new VoiceClusterTracker())
 
   useEffect(() => {
     userIdRef.current = userId ?? null
   }, [userId])
 
-  const appendFinalText = useCallback((text: string, timestamp: number, duration?: number | null) => {
-    const trimmed = text.trim()
-    if (!trimmed) return
+  const appendFinalText = useCallback(
+    (text: string, timestamp: number, duration?: number | null, voiceCluster?: number) => {
+      const trimmed = text.trim()
+      if (!trimmed) return
 
-    const chunkId = `chunk-${chunkIndexRef.current}`
-    chunkIndexRef.current += 1
+      const chunkId = `chunk-${chunkIndexRef.current}`
+      chunkIndexRef.current += 1
 
-    const nextText = dedupeAppend(fullTextRef.current, trimmed)
-    fullTextRef.current = nextText
-    setFullText(nextText)
-    setInterimText('')
-    setDetectedLanguage(detectLanguageFromText(nextText))
+      const nextText = dedupeAppend(fullTextRef.current, trimmed)
+      fullTextRef.current = nextText
+      setFullText(nextText)
+      setInterimText('')
+      setDetectedLanguage(detectLanguageFromText(nextText))
 
-    const segment: TranscriptSegment = {
-      id: segmentsRef.current.length,
-      start: timestamp,
-      end: timestamp + Math.max(1, duration ?? LIVE_CHUNK_INTERVAL_MS / 1000),
-      text: trimmed,
-    }
-    segmentsRef.current = [...segmentsRef.current, segment]
-    setSegments(segmentsRef.current)
-
-    setLiveChunks((prev) => [
-      ...prev,
-      {
-        id: chunkId,
-        timestamp,
-        timestampLabel: formatDuration(timestamp),
+      const speaker = classifySegmentHeuristic(trimmed)
+      const segment: TranscriptSegment = {
+        id: segmentsRef.current.length,
+        start: timestamp,
+        end: timestamp + Math.max(1, duration ?? LIVE_CHUNK_INTERVAL_MS / 1000),
         text: trimmed,
-        isInterim: false,
-      },
-    ])
-    setLatestChunkId(chunkId)
-  }, [])
+        speaker,
+        voiceCluster,
+      }
+      segmentsRef.current = [...segmentsRef.current, segment]
+      setSegments(segmentsRef.current)
+
+      setLiveChunks((prev) => [
+        ...prev,
+        {
+          id: chunkId,
+          timestamp,
+          timestampLabel: formatDuration(timestamp),
+          text: trimmed,
+          isInterim: false,
+          speaker,
+        },
+      ])
+      setLatestChunkId(chunkId)
+    },
+    [],
+  )
 
   const transcribeChunk = useCallback(
     async (blob: Blob, recorderChunkIndex: number) => {
@@ -111,6 +123,9 @@ export function useLiveTranscription(userId?: string | null) {
 
       try {
         const timestamp = elapsedRef.current
+        const voiceProfile = await analyzeVoiceProfile(blob)
+        const voiceCluster = voiceProfile ? voiceTrackerRef.current.assign(voiceProfile) : undefined
+
         const result = await transcribeLiveAudioChunk({
           userId: currentUserId,
           sessionId: sessionIdRef.current,
@@ -120,7 +135,7 @@ export function useLiveTranscription(userId?: string | null) {
         })
 
         if (result?.text) {
-          appendFinalText(result.text, timestamp, result.duration)
+          appendFinalText(result.text, timestamp, result.duration, voiceCluster)
         }
       } catch (error) {
         setTranscriptionError(
@@ -171,6 +186,25 @@ export function useLiveTranscription(userId?: string | null) {
     fullTextRef.current = ''
     segmentsRef.current = []
     chunkIndexRef.current = 0
+    voiceTrackerRef.current.reset()
+  }, [])
+
+  const refineSpeakers = useCallback(async (subject?: string) => {
+    if (segmentsRef.current.length === 0) return
+
+    try {
+      const labeled = await detectSpeakers(segmentsRef.current, { subject, useLlm: true })
+      segmentsRef.current = labeled
+      setSegments(labeled)
+      setLiveChunks((prev) =>
+        prev.map((chunk, index) => ({
+          ...chunk,
+          speaker: labeled[index]?.speaker ?? chunk.speaker,
+        })),
+      )
+    } catch (error) {
+      console.error('Speaker refinement failed:', error)
+    }
   }, [])
 
   const startLiveRecording = useCallback(async () => {
@@ -264,6 +298,7 @@ export function useLiveTranscription(userId?: string | null) {
       stopLiveRecording,
       resetAll,
       retryTranscription,
+      refineSpeakers,
       saveTranscript,
       updateSavedTranscript,
     }),
@@ -284,6 +319,7 @@ export function useLiveTranscription(userId?: string | null) {
       stopLiveRecording,
       resetAll,
       retryTranscription,
+      refineSpeakers,
       saveTranscript,
       updateSavedTranscript,
     ],

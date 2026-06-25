@@ -15,6 +15,9 @@ import uploadRouter from './routes/uploads'
 import profileRouter from './routes/profiles'
 import streakRouter from './routes/streaks'
 import examCountdownRouter from './routes/examCountdown'
+import searchRouter from './routes/search'
+import sharesRouter from './routes/shares'
+import analyticsRouter from './routes/analytics'
 import { ensureUploadDirs, UPLOADS_ROOT } from './config/storage'
 import { prisma } from './config/db'
 import { resolveApiError } from './utils/apiError'
@@ -39,6 +42,9 @@ app.use('/api/uploads', uploadRouter)
 app.use('/api/profiles', profileRouter)
 app.use('/api/streaks', streakRouter)
 app.use('/api/exam-countdown', examCountdownRouter)
+app.use('/api/search', searchRouter)
+app.use('/api/shares', sharesRouter)
+app.use('/api/analytics', analyticsRouter)
 
 
 app.get('/', (_req, res) => {

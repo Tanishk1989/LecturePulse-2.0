@@ -11,6 +11,7 @@ import pdfParse from 'pdf-parse'
 export interface ProcessLectureOptions {
   generateNotes?: boolean
   forceRetranscribe?: boolean
+  transcriptionLanguage?: string
 }
 
 export { parseYouTubeVideoId, isYouTubeUrl }
@@ -124,6 +125,10 @@ export async function triggerLectureProcessing(
 ): Promise<void> {
   const generateNotes = options.generateNotes !== false
   const forceRetranscribe = options.forceRetranscribe === true
+  const transcriptionLanguage =
+    options.transcriptionLanguage && options.transcriptionLanguage !== 'auto'
+      ? options.transcriptionLanguage
+      : undefined
 
   try {
     const lecture = await prisma.lecture.findFirst({
@@ -195,7 +200,7 @@ export async function triggerLectureProcessing(
 
           const transcriptionResult = await transcribeFromUrl(
             audioUrl,
-            undefined,
+            transcriptionLanguage,
             lectureId,
             lecture.subject || undefined,
           )
@@ -208,6 +213,18 @@ export async function triggerLectureProcessing(
             end: seg.end,
             text: seg.text.trim()
           }))
+
+          if (segments.length > 0) {
+            try {
+              const { detectSpeakersInSegments } = await import('./speakerDetectionService')
+              segments = await detectSpeakersInSegments(segments, {
+                subject: lecture.subject || undefined,
+                useLlm: true,
+              })
+            } catch (speakerErr) {
+              console.error('Speaker detection failed, saving without labels:', speakerErr)
+            }
+          }
         }
 
         if (!extractedText) {
@@ -238,6 +255,13 @@ export async function triggerLectureProcessing(
             updatedAt: new Date()
           }
         })
+
+        try {
+          const { indexLectureRag } = await import('./ragService')
+          await indexLectureRag(lectureId, userId, cleanedText)
+        } catch (ragErr) {
+          console.error('RAG indexing failed:', ragErr)
+        }
       } catch (err: any) {
         const msg = err.message || 'Processing failed.'
         await prisma.transcript.update({

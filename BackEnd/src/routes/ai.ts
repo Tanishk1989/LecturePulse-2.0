@@ -177,4 +177,70 @@ router.get('/feedback', requireAuth, async (req: AuthenticatedRequest, res: Resp
   }
 })
 
+// POST /api/ai/rag-retrieve - Semantic search over indexed lecture chunks
+router.post('/rag-retrieve', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user?.uid
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
+  const { question, lectureIds, topK } = req.body
+  if (!question || typeof question !== 'string') {
+    return res.status(400).json({ error: 'question is required.' })
+  }
+  if (!Array.isArray(lectureIds) || lectureIds.length === 0) {
+    return res.status(400).json({ error: 'lectureIds array is required.' })
+  }
+
+  try {
+    const { retrieveRagChunks } = await import('../services/ragService')
+    const chunks = await retrieveRagChunks(
+      userId,
+      question,
+      lectureIds.filter((id: unknown) => typeof id === 'string'),
+      typeof topK === 'number' ? topK : 6,
+    )
+    res.json({ chunks })
+  } catch (error) {
+    return sendRouteError(res, error, 'RAG retrieval failed.')
+  }
+})
+
+// POST /api/ai/translate - Translate lecture content
+router.post('/translate', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const { text, targetLanguage, contextLabel } = req.body
+  if (!text || typeof text !== 'string') {
+    return res.status(400).json({ error: 'text is required.' })
+  }
+  if (!targetLanguage || typeof targetLanguage !== 'string') {
+    return res.status(400).json({ error: 'targetLanguage is required.' })
+  }
+
+  try {
+    const { translateText } = await import('../services/translationService')
+    const translated = await translateText(text, targetLanguage, contextLabel)
+    res.json({ translated })
+  } catch (error) {
+    return sendRouteError(res, error, 'Translation failed.')
+  }
+})
+
+// POST /api/ai/detect-speakers - Label transcript segments by speaker role
+router.post('/detect-speakers', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const { segments, subject, useLlm } = req.body
+
+  if (!Array.isArray(segments) || segments.length === 0) {
+    return res.status(400).json({ error: 'segments array is required.' })
+  }
+
+  try {
+    const { detectSpeakersInSegments } = await import('../services/speakerDetectionService')
+    const labeled = await detectSpeakersInSegments(segments, {
+      subject: typeof subject === 'string' ? subject : undefined,
+      useLlm: useLlm !== false,
+    })
+    res.json({ segments: labeled })
+  } catch (error) {
+    return sendRouteError(res, error, 'Speaker detection failed.')
+  }
+})
+
 export default router

@@ -126,6 +126,7 @@ export async function extractAndStoreConcepts(
             userId,
             fromConceptId: fromId,
             toConceptId: toId,
+            linkType: 'intra',
           }
         })
         .filter(Boolean) as Array<{
@@ -133,6 +134,7 @@ export async function extractAndStoreConcepts(
         userId: string
         fromConceptId: string
         toConceptId: string
+        linkType: string
       }>
 
       if (linkData.length > 0) {
@@ -144,6 +146,9 @@ export async function extractAndStoreConcepts(
         data: { kgStatus: 'completed', updatedAt: new Date() },
       })
     })
+
+    const { syncCrossLectureLinks } = await import('./crossLectureService')
+    await syncCrossLectureLinks(userId)
   } catch (error) {
     await prisma.lecture.update({
       where: { id: lectureId },

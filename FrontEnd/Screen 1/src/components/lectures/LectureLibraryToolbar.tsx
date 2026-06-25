@@ -13,6 +13,10 @@ interface LectureLibraryToolbarProps {
   onFilterChange: (value: LectureFilter) => void
   sort: LectureSort
   onSortChange: (value: LectureSort) => void
+  tagFilter: string | null
+  onTagFilterChange: (value: string | null) => void
+  availableTags: string[]
+  searchLoading?: boolean
 }
 
 export function LectureLibraryToolbar({
@@ -22,6 +26,10 @@ export function LectureLibraryToolbar({
   onFilterChange,
   sort,
   onSortChange,
+  tagFilter,
+  onTagFilterChange,
+  availableTags,
+  searchLoading,
 }: LectureLibraryToolbarProps) {
   return (
     <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
@@ -41,7 +49,7 @@ export function LectureLibraryToolbar({
               type="search"
               value={search}
               onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="Search lectures..."
+              placeholder="Search titles, transcripts, notes, tags…"
               className={cn(
                 'w-full rounded-2xl border border-white/[0.08] bg-white/[0.03] py-3 pl-11 pr-4 text-sm text-foreground',
                 'placeholder:text-muted/70 outline-none backdrop-blur-xl transition-all duration-300',
@@ -90,6 +98,34 @@ export function LectureLibraryToolbar({
               <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 border-l-[3.5px] border-r-[3.5px] border-t-[4px] border-l-transparent border-r-transparent border-t-muted" />
             </div>
           </label>
+
+          {/* Tag Filter Dropdown */}
+          {availableTags.length > 0 && (
+            <label className="relative flex items-center gap-2">
+              <span className="text-xs text-muted">Tag:</span>
+              <div className="relative">
+                <select
+                  value={tagFilter ?? ''}
+                  onChange={(event) => onTagFilterChange(event.target.value || null)}
+                  className={cn(
+                    'appearance-none rounded-full border border-white/[0.08] bg-white/[0.03] py-1.5 pl-3 pr-8 text-xs font-medium text-foreground',
+                    'outline-none backdrop-blur-xl transition-all duration-300 cursor-pointer',
+                    'focus:border-accent/35 focus:shadow-[0_0_20px_rgba(180,230,29,0.1)]',
+                  )}
+                >
+                  <option value="" className="bg-card">All tags</option>
+                  {availableTags.map((tag) => (
+                    <option key={tag} value={tag} className="bg-card">
+                      {tag}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 border-l-[3.5px] border-r-[3.5px] border-t-[4px] border-l-transparent border-r-transparent border-t-muted" />
+              </div>
+            </label>
+          )}
+
+          {searchLoading && <span className="text-xs text-muted">Searching…</span>}
 
           {/* Sort Dropdown */}
           <label className="relative flex items-center gap-2">

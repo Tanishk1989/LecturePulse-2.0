@@ -15,6 +15,7 @@ import { Link } from 'react-router-dom'
 import { formatDuration, formatRelativeDate } from '@/lib/formatDuration'
 import { getFileTypeLabel, getLectureMediaKind } from '@/lib/lectureFilters'
 import { getLectureStatusLabel } from '@/lib/lectureStatus'
+import { LectureTagsEditor } from '@/components/lectures/LectureTagsEditor'
 import type { LectureRecording } from '@/types/lecture'
 import { cn } from '@/lib/utils'
 
@@ -23,6 +24,7 @@ interface LectureCardProps {
   onDelete: (id: string) => void
   onRename: (id: string, title: string) => void
   onToggleFavorite: (id: string) => void
+  onUpdateTags: (id: string, tags: string[]) => void
 }
 
 function LectureIcon({ lecture }: { lecture: LectureRecording }) {
@@ -75,6 +77,7 @@ export function LectureCard({
   onDelete,
   onRename,
   onToggleFavorite,
+  onUpdateTags,
 }: LectureCardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [titleDraft, setTitleDraft] = useState(lecture.title)
@@ -190,6 +193,19 @@ export function LectureCard({
                   <span className="font-mono tabular-nums">{formatDuration(lecture.duration)}</span>
                 </>
               )}
+            </div>
+            <div
+              className="mt-2"
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+              }}
+            >
+              <LectureTagsEditor
+                tags={lecture.tags}
+                compact
+                onChange={(tags) => onUpdateTags(lecture.id, tags)}
+              />
             </div>
           </div>
         </div>

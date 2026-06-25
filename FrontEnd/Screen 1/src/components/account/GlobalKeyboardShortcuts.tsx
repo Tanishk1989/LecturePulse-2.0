@@ -43,7 +43,7 @@ export function GlobalKeyboardShortcuts({ children }: { children: ReactNode }) {
 
       if (mod && key === 'k') {
         event.preventDefault()
-        openTutor()
+        navigate('/dashboard/search')
         return
       }
 

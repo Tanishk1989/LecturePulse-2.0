@@ -163,7 +163,7 @@ export async function toggleFavorite(
 export async function updateLecture(
   userId: string,
   lectureId: string,
-  updates: { title?: string; status?: LectureRow['status'] },
+  updates: { title?: string; status?: LectureRow['status']; subject?: string | null; tags?: string[] },
 ): Promise<LectureRecording> {
   const data = await apiFetch<LectureRow>(`/lectures/${lectureId}`, {
     method: 'PATCH',

@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 
 import { useState } from 'react'
 import { Bell, Menu, Search, Sun, Moon, ArrowLeft } from 'lucide-react'
@@ -10,7 +11,8 @@ import { isXlUp } from '@/lib/breakpoints'
 import { cn } from '@/lib/utils'
 
 export function TopNavbar() {
-  const { toggleSidebar, openTutor } = useDashboard()
+  const navigate = useNavigate()
+  const { toggleSidebar } = useDashboard()
   const [searchValue, setSearchValue] = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
@@ -20,18 +22,18 @@ export function TopNavbar() {
     e.preventDefault()
     const query = searchValue.trim()
     if (query) {
-      openTutor(query)
-      setSearchValue('')
+      navigate(`/dashboard/search?q=${encodeURIComponent(query)}`)
     } else {
-      openTutor()
+      navigate('/dashboard/search')
     }
+    setSearchValue('')
     setSearchFocused(false)
     setMobileSearchOpen(false)
   }
 
   const handleSearchFocus = () => {
     if (isXlUp()) {
-      openTutor(searchValue.trim() || undefined)
+      navigate(searchValue.trim() ? `/dashboard/search?q=${encodeURIComponent(searchValue.trim())}` : '/dashboard/search')
       setSearchFocused(false)
       return
     }
@@ -63,7 +65,7 @@ export function TopNavbar() {
                 autoFocus
                 value={searchValue}
                 onChange={(e) => setSearchValue(e.target.value)}
-                placeholder="Ask anything..."
+                placeholder="Search lectures, notes, transcripts…"
                 className="h-10 w-full bg-transparent pl-10 pr-4 text-sm text-foreground placeholder:text-muted focus:outline-none cursor-text"
               />
             </div>
@@ -110,7 +112,7 @@ export function TopNavbar() {
               onChange={(e) => setSearchValue(e.target.value)}
               onFocus={handleSearchFocus}
               onBlur={() => setSearchFocused(false)}
-              placeholder="Ask anything..."
+              placeholder="Search lectures, notes, transcripts…"
               className="h-10 w-full bg-transparent pl-10 pr-20 text-sm text-foreground placeholder:text-muted focus:outline-none cursor-text"
             />
             <kbd className="absolute right-3 hidden sm:inline-flex items-center gap-0.5 rounded-md border border-white/[0.1] bg-white/[0.04] px-1.5 py-0.5 text-[10px] text-muted font-medium">
@@ -119,7 +121,7 @@ export function TopNavbar() {
           </div>
           {searchFocused && !isXlUp() && (
             <div className="absolute mt-2 w-full rounded-xl border border-white/[0.08] bg-card p-3 shadow-xl z-50">
-              <p className="text-[10px] font-semibold tracking-wider uppercase text-muted mb-2">Try asking</p>
+              <p className="text-[10px] font-semibold tracking-wider uppercase text-muted mb-2">Try searching</p>
               <div className="flex flex-wrap gap-2">
                 {searchExamples.map((example) => (
                   <button
@@ -128,7 +130,7 @@ export function TopNavbar() {
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => {
                       setSearchValue(example)
-                      openTutor(example)
+                      navigate(`/dashboard/search?q=${encodeURIComponent(example)}`)
                       setSearchFocused(false)
                     }}
                     className="rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-1.5 text-xs text-muted hover:text-accent hover:border-accent/25 transition-all duration-300 cursor-pointer"
