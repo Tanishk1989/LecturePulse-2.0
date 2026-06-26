@@ -5,6 +5,7 @@ exports.generateStructuredNotes = generateStructuredNotes;
 const groq_1 = require("./groq");
 const parseJsonFromAi_1 = require("../utils/parseJsonFromAi");
 const db_1 = require("../config/db");
+const outputLanguage_1 = require("./outputLanguage");
 exports.NOTES_SYSTEM_PROMPT = `You are LecturePulse's Elite Academic Note-Taker. Your role is to convert a lecture transcript into highly structured, premium study notes.
 
 Language Rule: All AI-generated content — summary, key concepts, definitions, mindMap, questions, examTips — must always be in English, regardless of what language the lecture or transcript is in. Even if the transcript is in Hinglish or Hindi, you must always generate all these notes/sections in English. Do NOT translate or write notes in Hindi or Hinglish.
@@ -132,13 +133,14 @@ async function chunkTranscriptIfLongBackend(transcript) {
     }
     return chunks;
 }
-async function generateNotesForChunk(chunk, summaryInstruction = '', difficultyInstruction = '') {
+async function generateNotesForChunk(chunk, summaryInstruction = '', difficultyInstruction = '', outputLanguage = 'en') {
     const userPrompt = `Generate smart study notes from this lecture:\n\n${chunk}`;
     const systemPrompt = exports.NOTES_SYSTEM_PROMPT + summaryInstruction + difficultyInstruction;
     for (let attempt = 0; attempt < 2; attempt += 1) {
         const raw = await (0, groq_1.groqChatCompletion)(systemPrompt, userPrompt, {
             jsonMode: true,
             temperature: attempt === 0 ? 0.2 : 0.1,
+            outputLanguage,
         });
         const parsed = (0, parseJsonFromAi_1.parseJsonFromAi)(raw);
         if (parsed) {
@@ -147,7 +149,7 @@ async function generateNotesForChunk(chunk, summaryInstruction = '', difficultyI
     }
     throw new Error('AI returned invalid notes format.');
 }
-async function mergeStructuredNotes(notesList, summaryInstruction = '') {
+async function mergeStructuredNotes(notesList, summaryInstruction = '', outputLanguage = 'en') {
     // 1. Concatenate all summaries and merge via AI
     const combinedSummaries = notesList.map((n) => n.summary).join('\n\n');
     const mergeSummaryPrompt = `You are an academic note-taking assistant. You are given summaries of different sections of a lecture. Merge them into a single cohesive, structured summary. Remove any redundancy between sections.
@@ -167,7 +169,7 @@ You MUST format your output beautifully in Markdown using this exact structure (
 
 Language Rule: All AI-generated content must always be in English, regardless of the language of the source summaries. Do NOT respond in Hindi or Hinglish.
 ${summaryInstruction}`;
-    const mergedSummary = await (0, groq_1.groqChatCompletion)(mergeSummaryPrompt, `Here are the summaries of each section:\n\n${combinedSummaries}`, { temperature: 0.3 });
+    const mergedSummary = await (0, groq_1.groqChatCompletion)(mergeSummaryPrompt, `Here are the summaries of each section:\n\n${combinedSummaries}`, { temperature: 0.3, outputLanguage });
     // 2. Combine lists
     const keyConcepts = notesList.flatMap((n) => n.keyConcepts);
     const importantPoints = notesList.flatMap((n) => n.importantPoints);
@@ -212,11 +214,12 @@ ${summaryInstruction}`;
         examTips,
     };
 }
-async function generateStructuredNotes(transcript, userId) {
+async function generateStructuredNotes(transcript, userId, options) {
     const trimmed = transcript.trim();
     if (!trimmed) {
         throw new Error('No lecture content available to generate notes.');
     }
+    const outputLanguage = (0, outputLanguage_1.normalizeOutputLanguage)(options?.outputLanguage);
     let summaryInstruction = '';
     let difficultyInstruction = '';
     if (userId) {
@@ -245,14 +248,14 @@ async function generateStructuredNotes(transcript, userId) {
     }
     const chunks = await chunkTranscriptIfLongBackend(trimmed);
     if (chunks.length === 1) {
-        return generateNotesForChunk(chunks[0], summaryInstruction, difficultyInstruction);
+        return generateNotesForChunk(chunks[0], summaryInstruction, difficultyInstruction, outputLanguage);
     }
     // Generate per-section notes
     const notesList = [];
     for (const chunk of chunks) {
-        const notes = await generateNotesForChunk(chunk, summaryInstruction, difficultyInstruction);
+        const notes = await generateNotesForChunk(chunk, summaryInstruction, difficultyInstruction, outputLanguage);
         notesList.push(notes);
     }
     // Merge the per-section outputs
-    return mergeStructuredNotes(notesList, summaryInstruction);
+    return mergeStructuredNotes(notesList, summaryInstruction, outputLanguage);
 }

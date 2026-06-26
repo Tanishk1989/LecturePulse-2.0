@@ -2,7 +2,6 @@ import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { HeroSection } from '@/sections/HeroSection'
 import { WhyLecturePulseSection } from '@/sections/WhyLecturePulseSection'
-import { KnowledgeGraphSection } from '@/sections/KnowledgeGraphSection'
 import { AIChatSection } from '@/sections/AIChatSection'
 import { ExamInsightsSection } from '@/sections/ExamInsightsSection'
 import { ArchitectureSection } from '@/sections/ArchitectureSection'
@@ -31,7 +30,6 @@ export function LandingPage() {
     <main>
       <HeroSection />
       <WhyLecturePulseSection />
-      <KnowledgeGraphSection />
       <AIChatSection />
       <ExamInsightsSection />
       <ArchitectureSection />

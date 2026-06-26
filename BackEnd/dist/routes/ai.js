@@ -1,8 +1,42 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const auth_1 = require("../middleware/auth");
 const groq_1 = require("../services/groq");
+const outputLanguage_1 = require("../services/outputLanguage");
 const db_1 = require("../config/db");
 const transcribeService_1 = require("../services/transcribeService");
 const youtubeService_1 = require("../services/youtubeService");
@@ -12,7 +46,7 @@ const apiError_1 = require("../utils/apiError");
 const router = (0, express_1.Router)();
 // POST /api/ai/chat - Proxy chat completion request to Groq SDK
 router.post('/chat', auth_1.requireAuth, async (req, res) => {
-    const { systemPrompt, userPrompt, temperature, model } = req.body;
+    const { systemPrompt, userPrompt, temperature, model, outputLanguage } = req.body;
     if (!systemPrompt || !userPrompt) {
         return res.status(400).json({ error: 'systemPrompt and userPrompt are required.' });
     }
@@ -20,6 +54,7 @@ router.post('/chat', auth_1.requireAuth, async (req, res) => {
         const content = await (0, groq_1.groqChatCompletion)(systemPrompt, userPrompt, {
             temperature,
             model,
+            outputLanguage: (0, outputLanguage_1.normalizeOutputLanguage)(outputLanguage),
         });
         res.json({ content });
     }
@@ -59,12 +94,14 @@ router.post('/transcribe-youtube', auth_1.requireAuth, async (req, res) => {
 // POST /api/ai/generate-notes - Generate structured notes from transcript text
 router.post('/generate-notes', auth_1.requireAuth, async (req, res) => {
     const userId = req.user?.uid;
-    const { transcript } = req.body;
+    const { transcript, outputLanguage } = req.body;
     if (!transcript || typeof transcript !== 'string' || !transcript.trim()) {
         return res.status(400).json({ error: 'lecture content is required.' });
     }
     try {
-        const content = await (0, notesGenerator_1.generateStructuredNotes)(transcript, userId);
+        const content = await (0, notesGenerator_1.generateStructuredNotes)(transcript, userId, {
+            outputLanguage: (0, outputLanguage_1.normalizeOutputLanguage)(outputLanguage),
+        });
         res.json(content);
     }
     catch (error) {
@@ -87,7 +124,7 @@ router.post('/extract-pdf', auth_1.requireAuth, async (req, res) => {
 });
 // POST /api/ai/stream-chat - Stream chat completion response using Server-Sent Events (SSE)
 router.post('/stream-chat', auth_1.requireAuth, async (req, res) => {
-    const { systemPrompt, userPrompt, temperature, model } = req.body;
+    const { systemPrompt, userPrompt, temperature, model, outputLanguage } = req.body;
     if (!systemPrompt || !userPrompt) {
         return res.status(400).json({ error: 'systemPrompt and userPrompt are required.' });
     }
@@ -102,7 +139,12 @@ router.post('/stream-chat', auth_1.requireAuth, async (req, res) => {
             model: model || 'llama-3.3-70b-versatile',
             temperature: temperature !== undefined ? temperature : 0.4,
             messages: [
-                { role: 'system', content: (0, groq_1.enhanceSystemPrompt)(systemPrompt) },
+                {
+                    role: 'system',
+                    content: (0, groq_1.enhanceSystemPrompt)(systemPrompt, {
+                        outputLanguage: (0, outputLanguage_1.normalizeOutputLanguage)(outputLanguage),
+                    }),
+                },
                 { role: 'user', content: userPrompt },
             ],
             stream: true,
@@ -158,6 +200,63 @@ router.get('/feedback', auth_1.requireAuth, async (req, res) => {
     }
     catch (error) {
         return (0, apiError_1.sendRouteError)(res, error, 'Failed to retrieve feedback.');
+    }
+});
+// POST /api/ai/rag-retrieve - Semantic search over indexed lecture chunks
+router.post('/rag-retrieve', auth_1.requireAuth, async (req, res) => {
+    const userId = req.user?.uid;
+    if (!userId)
+        return res.status(401).json({ error: 'Unauthorized' });
+    const { question, lectureIds, topK } = req.body;
+    if (!question || typeof question !== 'string') {
+        return res.status(400).json({ error: 'question is required.' });
+    }
+    if (!Array.isArray(lectureIds) || lectureIds.length === 0) {
+        return res.status(400).json({ error: 'lectureIds array is required.' });
+    }
+    try {
+        const { retrieveRagChunks } = await Promise.resolve().then(() => __importStar(require('../services/ragService')));
+        const chunks = await retrieveRagChunks(userId, question, lectureIds.filter((id) => typeof id === 'string'), typeof topK === 'number' ? topK : 6);
+        res.json({ chunks });
+    }
+    catch (error) {
+        return (0, apiError_1.sendRouteError)(res, error, 'RAG retrieval failed.');
+    }
+});
+// POST /api/ai/translate - Translate lecture content
+router.post('/translate', auth_1.requireAuth, async (req, res) => {
+    const { text, targetLanguage, contextLabel } = req.body;
+    if (!text || typeof text !== 'string') {
+        return res.status(400).json({ error: 'text is required.' });
+    }
+    if (!targetLanguage || typeof targetLanguage !== 'string') {
+        return res.status(400).json({ error: 'targetLanguage is required.' });
+    }
+    try {
+        const { translateText } = await Promise.resolve().then(() => __importStar(require('../services/translationService')));
+        const translated = await translateText(text, targetLanguage, contextLabel);
+        res.json({ translated });
+    }
+    catch (error) {
+        return (0, apiError_1.sendRouteError)(res, error, 'Translation failed.');
+    }
+});
+// POST /api/ai/detect-speakers - Label transcript segments by speaker role
+router.post('/detect-speakers', auth_1.requireAuth, async (req, res) => {
+    const { segments, subject, useLlm } = req.body;
+    if (!Array.isArray(segments) || segments.length === 0) {
+        return res.status(400).json({ error: 'segments array is required.' });
+    }
+    try {
+        const { detectSpeakersInSegments } = await Promise.resolve().then(() => __importStar(require('../services/speakerDetectionService')));
+        const labeled = await detectSpeakersInSegments(segments, {
+            subject: typeof subject === 'string' ? subject : undefined,
+            useLlm: useLlm !== false,
+        });
+        res.json({ segments: labeled });
+    }
+    catch (error) {
+        return (0, apiError_1.sendRouteError)(res, error, 'Speaker detection failed.');
     }
 });
 exports.default = router;

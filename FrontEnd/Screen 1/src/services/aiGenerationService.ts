@@ -1,5 +1,7 @@
 import { invokeGroqChat, isAiBackendConfigured, AI_UNAVAILABLE_MESSAGE } from '@/lib/groqProxy'
 import { apiFetch, apiFetchStream } from '@/lib/api'
+import { auth } from '@/lib/firebase'
+import { getOutputLanguagePreference } from '@/lib/processingPreferences'
 import type { FlashcardInput } from '@/types/flashcard'
 import type { StructuredNotesContent } from '@/types/notes'
 import { getCachedProfile } from '@/services/profileService'
@@ -15,6 +17,11 @@ export async function chatCompletion(systemPrompt: string, userPrompt: string): 
   return invokeGroqChat(systemPrompt, userPrompt)
 }
 
+function resolveOutputLanguage(): 'en' | 'match' {
+  const uid = auth.currentUser?.uid
+  return uid ? getOutputLanguagePreference(uid) : 'en'
+}
+
 
 export async function generateStructuredNotes(transcript: string): Promise<StructuredNotesContent> {
   if (!transcript.trim()) {
@@ -23,7 +30,12 @@ export async function generateStructuredNotes(transcript: string): Promise<Struc
 
   return apiFetch<StructuredNotesContent>('/ai/generate-notes', {
     method: 'POST',
-    body: JSON.stringify({ transcript }),
+    body: JSON.stringify({
+      transcript,
+      outputLanguage: auth.currentUser?.uid
+        ? getOutputLanguagePreference(auth.currentUser.uid)
+        : 'en',
+    }),
   })
 }
 
@@ -87,7 +99,7 @@ export async function generateSummaryStream(
 
   await apiFetchStream('/ai/stream-chat', {
     method: 'POST',
-    body: JSON.stringify({ systemPrompt, userPrompt }),
+    body: JSON.stringify({ systemPrompt, userPrompt, outputLanguage: resolveOutputLanguage() }),
   }, onChunk)
 }
 
@@ -100,7 +112,7 @@ export async function generateCombinedSummaryStream(
 
   await apiFetchStream('/ai/stream-chat', {
     method: 'POST',
-    body: JSON.stringify({ systemPrompt, userPrompt }),
+    body: JSON.stringify({ systemPrompt, userPrompt, outputLanguage: resolveOutputLanguage() }),
   }, onChunk)
 }
 

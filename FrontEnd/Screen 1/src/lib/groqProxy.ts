@@ -1,4 +1,6 @@
 import { apiFetch } from '@/lib/api'
+import { auth } from '@/lib/firebase'
+import { getOutputLanguagePreference } from '@/lib/processingPreferences'
 
 export function isAiBackendConfigured(): boolean {
   return true
@@ -9,6 +11,9 @@ export async function invokeGroqChat(
   userPrompt: string,
   options?: { temperature?: number; model?: string },
 ): Promise<string> {
+  const uid = auth.currentUser?.uid
+  const outputLanguage = uid ? getOutputLanguagePreference(uid) : 'en'
+
   const data = await apiFetch<{ content: string }>('/ai/chat', {
     method: 'POST',
     body: JSON.stringify({
@@ -16,6 +21,7 @@ export async function invokeGroqChat(
       userPrompt,
       temperature: options?.temperature ?? 0.4,
       model: options?.model,
+      outputLanguage,
     }),
   })
 

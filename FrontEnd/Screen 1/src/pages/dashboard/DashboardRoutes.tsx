@@ -1,7 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import { DashboardHomePage } from '@/pages/dashboard/DashboardHomePage'
-import { KnowledgeGraphPage } from '@/pages/dashboard/KnowledgeGraphPage'
 import { SmartNotesPage } from '@/pages/dashboard/SmartNotesPage'
 import { FlashcardsPage } from '@/pages/dashboard/FlashcardsPage'
 import { ExamFocusPage } from '@/pages/dashboard/ExamFocusPage'
@@ -41,7 +40,6 @@ export function DashboardRoutes() {
         <Route path="timetable" element={<TimetablePage />} />
         <Route path="institution" element={<InstitutionDashboardPage />} />
         <Route path="search" element={<SearchPage />} />
-        <Route path="knowledge-graph" element={<KnowledgeGraphPage />} />
         <Route path="ai-tutor" element={<AITutorPage />} />
         <Route path="exam-focus" element={<ExamFocusPage />} />
         <Route path="record" element={<RecordLivePage />} />

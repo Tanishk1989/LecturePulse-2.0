@@ -1,6 +1,7 @@
 import { groqChatCompletion } from './groq'
 import { parseJsonFromAi } from '../utils/parseJsonFromAi'
 import { prisma } from '../config/db'
+import { normalizeOutputLanguage, type AiOutputLanguage } from './outputLanguage'
 
 export interface MindMapNode {
   id: string
@@ -167,6 +168,7 @@ async function generateNotesForChunk(
   chunk: string,
   summaryInstruction = '',
   difficultyInstruction = '',
+  outputLanguage: AiOutputLanguage = 'en',
 ): Promise<StructuredNotesContent> {
   const userPrompt = `Generate smart study notes from this lecture:\n\n${chunk}`
   const systemPrompt = NOTES_SYSTEM_PROMPT + summaryInstruction + difficultyInstruction
@@ -175,6 +177,7 @@ async function generateNotesForChunk(
     const raw = await groqChatCompletion(systemPrompt, userPrompt, {
       jsonMode: true,
       temperature: attempt === 0 ? 0.2 : 0.1,
+      outputLanguage,
     })
 
     const parsed = parseJsonFromAi<StructuredNotesContent>(raw)
@@ -189,6 +192,7 @@ async function generateNotesForChunk(
 async function mergeStructuredNotes(
   notesList: StructuredNotesContent[],
   summaryInstruction = '',
+  outputLanguage: AiOutputLanguage = 'en',
 ): Promise<StructuredNotesContent> {
   // 1. Concatenate all summaries and merge via AI
   const combinedSummaries = notesList.map((n) => n.summary).join('\n\n')
@@ -213,7 +217,7 @@ ${summaryInstruction}`
   const mergedSummary = await groqChatCompletion(
     mergeSummaryPrompt,
     `Here are the summaries of each section:\n\n${combinedSummaries}`,
-    { temperature: 0.3 },
+    { temperature: 0.3, outputLanguage },
   )
 
   // 2. Combine lists
@@ -270,11 +274,14 @@ ${summaryInstruction}`
 export async function generateStructuredNotes(
   transcript: string,
   userId?: string,
+  options?: { outputLanguage?: string },
 ): Promise<StructuredNotesContent> {
   const trimmed = transcript.trim()
   if (!trimmed) {
     throw new Error('No lecture content available to generate notes.')
   }
+
+  const outputLanguage = normalizeOutputLanguage(options?.outputLanguage)
 
   let summaryInstruction = ''
   let difficultyInstruction = ''
@@ -305,16 +312,16 @@ export async function generateStructuredNotes(
   const chunks = await chunkTranscriptIfLongBackend(trimmed)
 
   if (chunks.length === 1) {
-    return generateNotesForChunk(chunks[0], summaryInstruction, difficultyInstruction)
+    return generateNotesForChunk(chunks[0], summaryInstruction, difficultyInstruction, outputLanguage)
   }
 
   // Generate per-section notes
   const notesList: StructuredNotesContent[] = []
   for (const chunk of chunks) {
-    const notes = await generateNotesForChunk(chunk, summaryInstruction, difficultyInstruction)
+    const notes = await generateNotesForChunk(chunk, summaryInstruction, difficultyInstruction, outputLanguage)
     notesList.push(notes)
   }
 
   // Merge the per-section outputs
-  return mergeStructuredNotes(notesList, summaryInstruction)
+  return mergeStructuredNotes(notesList, summaryInstruction, outputLanguage)
 }

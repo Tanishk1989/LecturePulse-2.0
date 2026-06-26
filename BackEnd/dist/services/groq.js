@@ -9,6 +9,7 @@ exports.groqChatCompletion = groqChatCompletion;
 exports.groqTranscribeBuffer = groqTranscribeBuffer;
 const groq_sdk_1 = __importDefault(require("groq-sdk"));
 const node_buffer_1 = require("node:buffer");
+const outputLanguage_1 = require("./outputLanguage");
 function getGroqClient() {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
@@ -16,26 +17,33 @@ function getGroqClient() {
     }
     return new groq_sdk_1.default({ apiKey });
 }
-function enhanceSystemPrompt(systemPrompt) {
-    const centralInstruction = `You are an AI study assistant for LecturePulse. 
-The user's lecture may be in Hindi. Follow these rules strictly:
-
-1. Transcript: If the lecture is in Hindi, write the transcript 
-   in Hinglish (Hindi spoken words written in Roman/Latin script). 
-   Do NOT translate to English. Do NOT use Devanagari script.
-
-2. All other outputs (summary, notes, definitions, mind map, 
-   key takeaways, questions, exam tips, flashcards, answers): 
-   Always write in English only, regardless of the lecture language.
-
-Never mix these up. Transcript = Hinglish. Everything else = English.`;
-    if (systemPrompt.includes('AI study assistant for LecturePulse') && systemPrompt.includes('Transcript = Hinglish')) {
+function enhanceSystemPrompt(systemPrompt, options = {}) {
+    if (options.skipEnhancement) {
         return systemPrompt;
     }
-    return `${centralInstruction}\n\n${systemPrompt}`;
+    const outputLanguage = (0, outputLanguage_1.normalizeOutputLanguage)(options.outputLanguage);
+    const marker = 'LecturePulse language policy';
+    if (systemPrompt.includes(marker)) {
+        return systemPrompt;
+    }
+    const rules = [`You are an AI study assistant for LecturePulse. ${marker}:`];
+    if (options.transcriptOnly) {
+        rules.push(outputLanguage_1.TRANSCRIPT_LANGUAGE_RULE);
+    }
+    else if (outputLanguage === 'match') {
+        rules.push(outputLanguage_1.MATCH_LECTURE_OUTPUT_RULE);
+    }
+    else {
+        rules.push(outputLanguage_1.STRICT_ENGLISH_OUTPUT_RULE);
+    }
+    return `${rules.join('\n\n')}\n\n${systemPrompt}`;
 }
 async function groqChatCompletion(systemPrompt, userPrompt, options) {
-    const enhancedPrompt = enhanceSystemPrompt(systemPrompt);
+    const enhancedPrompt = enhanceSystemPrompt(systemPrompt, {
+        outputLanguage: options?.outputLanguage,
+        transcriptOnly: options?.transcriptOnly,
+        skipEnhancement: options?.skipEnhancement,
+    });
     const groq = getGroqClient();
     const completion = await groq.chat.completions.create({
         model: options?.model || 'llama-3.3-70b-versatile',

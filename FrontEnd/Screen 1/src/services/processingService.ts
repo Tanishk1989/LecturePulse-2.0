@@ -20,7 +20,12 @@ export function isBackgroundProcessingAvailable(): boolean {
 
 export async function enqueueLectureProcessing(
   lectureId: string,
-  options?: { generateNotes?: boolean; forceRetranscribe?: boolean; transcriptionLanguage?: string },
+  options?: {
+    generateNotes?: boolean
+    forceRetranscribe?: boolean
+    transcriptionLanguage?: string
+    outputLanguage?: 'en' | 'match'
+  },
 ): Promise<ProcessingEnqueueResult> {
   const data = await apiFetch<{ status: string; id: string }>(`/lectures/${lectureId}/process`, {
     method: 'POST',
@@ -28,6 +33,7 @@ export async function enqueueLectureProcessing(
       generateNotes: options?.generateNotes !== false,
       forceRetranscribe: options?.forceRetranscribe === true,
       transcriptionLanguage: options?.transcriptionLanguage,
+      outputLanguage: options?.outputLanguage,
     }),
   })
 
@@ -95,7 +101,12 @@ export function pollUntilProcessingDone(
 
 export async function triggerLectureProcessing(
   lectureId: string,
-  options?: { generateNotes?: boolean; forceRetranscribe?: boolean; transcriptionLanguage?: string },
+  options?: {
+    generateNotes?: boolean
+    forceRetranscribe?: boolean
+    transcriptionLanguage?: string
+    outputLanguage?: 'en' | 'match'
+  },
 ): Promise<void> {
   try {
     await enqueueLectureProcessing(lectureId, options)

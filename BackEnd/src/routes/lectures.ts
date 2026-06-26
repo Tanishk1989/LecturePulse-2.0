@@ -171,7 +171,7 @@ router.post('/:id/process', requireAuth, async (req: AuthenticatedRequest, res: 
   const { id } = req.params
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })
 
-  const { generateNotes, forceRetranscribe, transcriptionLanguage } = req.body
+  const { generateNotes, forceRetranscribe, transcriptionLanguage, outputLanguage } = req.body
 
   try {
     const lecture = await prisma.lecture.findFirst({
@@ -198,6 +198,7 @@ router.post('/:id/process', requireAuth, async (req: AuthenticatedRequest, res: 
       forceRetranscribe: forceRetranscribe === true,
       transcriptionLanguage:
         typeof transcriptionLanguage === 'string' ? transcriptionLanguage : undefined,
+      outputLanguage: typeof outputLanguage === 'string' ? outputLanguage : undefined,
     }).catch((err) => {
       console.error(`Background processing job failed for lecture ${id}:`, err)
     })

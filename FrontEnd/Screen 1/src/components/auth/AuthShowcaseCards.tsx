@@ -20,11 +20,11 @@ export function AuthShowcaseCards({ parallaxX = 0, parallaxY = 0 }: AuthShowcase
       className: 'left-[2%] top-[8%] w-[280px] z-30',
     },
     {
-      id: 'graph',
+      id: 'flashcards',
       offset: { x: 18, y: -6, rotate: 1.5 },
       parallaxFactor: 0.06,
       floatDelay: 0.8,
-      content: <KnowledgeGraphCard />,
+      content: <FlashcardsCard />,
       className: 'right-[4%] top-[32%] w-[240px] z-20',
     },
     {
@@ -117,20 +117,20 @@ function TranscriptCard() {
   )
 }
 
-function KnowledgeGraphCard() {
-  const nodes = ['Calculus', 'Derivatives', 'Integrals']
+function FlashcardsCard() {
+  const cards = ['Eigenvalues', 'Derivatives', 'Integrals']
 
   return (
     <>
       <div className="mb-3 flex items-center gap-2">
         <span className="text-base" aria-hidden>
-          🧠
+          🃏
         </span>
-        <span className="text-xs font-semibold text-foreground">Knowledge Graph</span>
+        <span className="text-xs font-semibold text-foreground">Flashcards</span>
       </div>
       <div className="flex flex-col items-center gap-1">
-        {nodes.map((node, i) => (
-          <div key={node} className="flex flex-col items-center">
+        {cards.map((card, i) => (
+          <div key={card} className="flex flex-col items-center">
             <div
               className={cn(
                 'rounded-lg border px-3 py-1 text-[10px] font-medium',
@@ -139,9 +139,9 @@ function KnowledgeGraphCard() {
                   : 'border-white/[0.08] bg-white/[0.03] text-muted',
               )}
             >
-              {node}
+              {card}
             </div>
-            {i < nodes.length - 1 && (
+            {i < cards.length - 1 && (
               <span className="my-0.5 text-[10px] text-accent/50">↓</span>
             )}
           </div>

@@ -7,7 +7,6 @@ import { MainContentAmbient } from '@/components/dashboard/ui/MainContentAmbient
 import { DashboardPageShell } from '@/components/dashboard/ui/DashboardPageShell'
 import { useStudyMetrics } from '@/hooks/useStudyMetrics'
 import { useLectures } from '@/context/LectureContext'
-import { KnowledgeGraphSpotlight } from '@/components/dashboard/home/KnowledgeGraphSpotlight'
 import { getStreakData, useStreakFreeze, letGoStreak, type StreakData } from '@/services/streakService'
 import { useToast } from '@/components/ui/ToastProvider'
 import { cn } from '@/lib/utils'
@@ -111,7 +110,6 @@ export function DashboardHomePage() {
 
         <DashboardHero metrics={metrics} loading={metricsLoading} />
         <FutureViewSection lectureCount={lectures.length} />
-        <KnowledgeGraphSpotlight />
         <LiveLectureCard />
         <RecentLecturesSection />
       </DashboardPageShell>

@@ -2,6 +2,8 @@ import { chatCompletion } from '@/services/aiGenerationService'
 import { getUserNotes } from '@/services/notesService'
 import { retrieveRagContext } from '@/services/translationService'
 import { apiFetch, apiFetchStream } from '@/lib/api'
+import { auth } from '@/lib/firebase'
+import { getOutputLanguagePreference } from '@/lib/processingPreferences'
 import type { LectureRecording } from '@/types/lecture'
 import { getCachedProfile } from '@/services/profileService'
 
@@ -27,8 +29,7 @@ Formatting & Visual Hierarchy:
 - For key definitions or critical formulas, call them out clearly using blockquotes or standard markdown highlights.
 
 Bilingual & Hinglish Support:
-- Keep the native language of the lecture materials (English, Hindi, or Hinglish).
-- If the material or conversation includes Hinglish (Hindi in the Latin script), respond in fluent, natural, conversational Hinglish (e.g., "Toh chaliye is concept ko simple terms mein samajhte hain..."). Do not translate Hinglish into pure English or pure Hindi.
+{languageDirective}
 
 Relevant lecture excerpts:
 {relevantChunks}
@@ -40,8 +41,23 @@ Directives for Specific Task Formats:
   * **Back**: [Clear, concise answer with context]
 - **Identify Weak Areas**: Analyze the transcript/notes, look for topics that are briefly introduced, highly complex, or lack complete examples, and suggest a targeted study plan for those areas.`
 
+function getLanguageDirective(): string {
+  const uid = auth.currentUser?.uid
+  const outputLanguage = uid ? getOutputLanguagePreference(uid) : 'en'
+
+  if (outputLanguage === 'match') {
+    return `- Keep the native language of the lecture materials (English, Hindi, or Hinglish).
+- If the material or conversation includes Hinglish (Hindi in the Latin script), respond in fluent, natural, conversational Hinglish. Do not force English.`
+  }
+
+  return `- Always respond in English only, regardless of the lecture language.
+- Do not use Hindi, Hinglish, or Devanagari script unless the student explicitly asks for another language.`
+}
+
 function getSystemPrompt(relevantChunks: string): string {
-  let basePrompt = TUTOR_SYSTEM_PROMPT_TEMPLATE.replace('{relevantChunks}', relevantChunks)
+  let basePrompt = TUTOR_SYSTEM_PROMPT_TEMPLATE
+    .replace('{relevantChunks}', relevantChunks)
+    .replace('{languageDirective}', getLanguageDirective())
   const profile = getCachedProfile()
   if (profile && profile.tutorStyle) {
     if (profile.tutorStyle === 'socratic') {
@@ -400,6 +416,12 @@ export async function askTutorQuestionStream(
 
   await apiFetchStream('/ai/stream-chat', {
     method: 'POST',
-    body: JSON.stringify({ systemPrompt, userPrompt }),
+    body: JSON.stringify({
+      systemPrompt,
+      userPrompt,
+      outputLanguage: auth.currentUser?.uid
+        ? getOutputLanguagePreference(auth.currentUser.uid)
+        : 'en',
+    }),
   }, onChunk)
 }

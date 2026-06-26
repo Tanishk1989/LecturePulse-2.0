@@ -1,7 +1,9 @@
 -- Tier 6: collaborative notes sharing
+-- lectures.id is TEXT (Prisma String @id), not PostgreSQL uuid — FK columns must match.
+
 CREATE TABLE IF NOT EXISTS lecture_shares (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  lecture_id UUID NOT NULL REFERENCES lectures(id) ON DELETE CASCADE,
+  id TEXT PRIMARY KEY,
+  lecture_id TEXT NOT NULL REFERENCES lectures(id) ON DELETE CASCADE,
   user_id TEXT NOT NULL,
   share_token TEXT NOT NULL UNIQUE,
   allow_merge BOOLEAN NOT NULL DEFAULT true,

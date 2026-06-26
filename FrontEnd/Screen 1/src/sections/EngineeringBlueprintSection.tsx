@@ -37,7 +37,7 @@ const steps = [
     title: 'Persistence',
     tech: 'Supabase PostgreSQL',
     description:
-      'Lecture text, definitions, flashcards, and knowledge graph nodes securely indexed in Supabase PostgreSQL with row-level security.',
+      'Lecture text, definitions, and flashcards securely indexed in Supabase PostgreSQL with row-level security.',
     icon: Database,
     accent: '#10B981',
   },

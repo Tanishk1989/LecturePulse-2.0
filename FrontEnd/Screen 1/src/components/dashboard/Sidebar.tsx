@@ -92,9 +92,9 @@ function SidebarContent({ onNavigate, isDrawer = true }: { onNavigate?: () => vo
                           to={path}
                           onClick={onNavigate}
                           className={cn(
-                            'group flex items-center gap-3 rounded-full px-3 py-2 text-[13px] transition-all duration-300 cursor-pointer',
+                            'group flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-[13px] transition-all duration-200 cursor-pointer',
                             isActive
-                              ? 'text-accent border-l-[3px] border-accent pl-[10px]'
+                              ? 'text-accent border-l-[3px] border-accent pl-[8px]'
                               : 'text-muted hover:text-foreground border-l-[3px] border-transparent',
                             isStudyHub
                               ? 'study-hub-glow'

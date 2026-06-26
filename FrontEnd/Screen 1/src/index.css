@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
 :root {
@@ -813,7 +813,6 @@ button:not(:disabled),
 .light [data-nav-icon="lectures"] svg { color: #4A7A10 !important; }
 .light [data-nav-icon="notes"] svg { color: #4A8A60 !important; }
 .light [data-nav-icon="flashcards"] svg { color: #8A5A10 !important; }
-.light [data-nav-icon="knowledge-graph"] svg { color: #8A8A10 !important; }
 .light [data-nav-icon="ai-tutor"] svg { color: #5A4A8A !important; }
 .light [data-nav-icon="exam-focus"] svg { color: #8A2A10 !important; }
 .light [data-nav-icon="streak"] svg { color: #5A8A60 !important; }
@@ -822,7 +821,6 @@ button:not(:disabled),
 .light [data-nav-icon="lectures"],
 .light [data-nav-icon="notes"],
 .light [data-nav-icon="flashcards"],
-.light [data-nav-icon="knowledge-graph"],
 .light [data-nav-icon="ai-tutor"],
 .light [data-nav-icon="exam-focus"],
 .light [data-nav-icon="streak"],
@@ -1104,4 +1102,17 @@ button:not(:disabled),
   stroke: var(--accent) !important;
 }
 
+/* Topbar glassmorphism */
+.topbar-glass {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(13, 13, 15, 0.72);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
+}
+
+.light .topbar-glass {
+  background: rgba(248, 247, 242, 0.82) !important;
+  border-color: var(--navbar-border) !important;
+}
 

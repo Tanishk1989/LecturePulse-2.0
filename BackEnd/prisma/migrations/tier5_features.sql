@@ -1,7 +1,9 @@
 -- Tier 5: RAG chunks, cross-lecture link type, lecture quiz attempts
+-- lectures.id is TEXT (Prisma String @id), not PostgreSQL uuid — FK columns must match.
+
 CREATE TABLE IF NOT EXISTS rag_chunks (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  lecture_id UUID NOT NULL REFERENCES lectures(id) ON DELETE CASCADE,
+  id TEXT PRIMARY KEY,
+  lecture_id TEXT NOT NULL REFERENCES lectures(id) ON DELETE CASCADE,
   user_id TEXT NOT NULL,
   chunk_index INTEGER NOT NULL,
   text TEXT NOT NULL,
@@ -14,9 +16,9 @@ CREATE INDEX IF NOT EXISTS rag_chunks_user_id_idx ON rag_chunks(user_id);
 ALTER TABLE kg_links ADD COLUMN IF NOT EXISTS link_type TEXT NOT NULL DEFAULT 'intra';
 
 CREATE TABLE IF NOT EXISTS lecture_quiz_attempts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
-  lecture_id UUID NOT NULL REFERENCES lectures(id) ON DELETE CASCADE,
+  lecture_id TEXT NOT NULL REFERENCES lectures(id) ON DELETE CASCADE,
   question TEXT NOT NULL,
   selected_answer TEXT NOT NULL,
   correct_answer TEXT NOT NULL,

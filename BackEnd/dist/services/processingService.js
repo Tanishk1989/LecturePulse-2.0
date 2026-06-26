@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -18,6 +51,7 @@ Object.defineProperty(exports, "isYouTubeUrl", { enumerable: true, get: function
 Object.defineProperty(exports, "parseYouTubeVideoId", { enumerable: true, get: function () { return youtubeUtils_1.parseYouTubeVideoId; } });
 const storage_1 = require("../config/storage");
 const groq_1 = require("./groq");
+const outputLanguage_1 = require("./outputLanguage");
 const pdf_parse_1 = __importDefault(require("pdf-parse"));
 async function cleanTranscript(rawTranscript) {
     const systemPrompt = `You are a transcript cleanup assistant for a lecture transcription app covering any academic subject. You will receive a raw, auto-generated transcript from a speech-to-text system. Your job is to clean it up WITHOUT changing its meaning or adding any new information.
@@ -38,6 +72,7 @@ Rules:
     return (0, groq_1.groqChatCompletion)(systemPrompt, rawTranscript, {
         model: 'llama-3.3-70b-versatile',
         temperature: 0.2,
+        transcriptOnly: true,
     });
 }
 function getExcerpt(text, maxWords = 800) {
@@ -111,6 +146,10 @@ async function extractPdfTextFromUrl(pdfUrl) {
 async function triggerLectureProcessing(lectureId, userId, options = {}) {
     const generateNotes = options.generateNotes !== false;
     const forceRetranscribe = options.forceRetranscribe === true;
+    const transcriptionLanguage = options.transcriptionLanguage && options.transcriptionLanguage !== 'auto'
+        ? options.transcriptionLanguage
+        : undefined;
+    const outputLanguage = (0, outputLanguage_1.normalizeOutputLanguage)(options.outputLanguage);
     try {
         const lecture = await db_1.prisma.lecture.findFirst({
             where: { id: lectureId, userId }
@@ -171,7 +210,7 @@ async function triggerLectureProcessing(lectureId, userId, options = {}) {
                             data: { fileUrl: audioUrl }
                         });
                     }
-                    const transcriptionResult = await (0, transcribeService_1.transcribeFromUrl)(audioUrl, undefined, lectureId, lecture.subject || undefined);
+                    const transcriptionResult = await (0, transcribeService_1.transcribeFromUrl)(audioUrl, transcriptionLanguage, lectureId, lecture.subject || undefined);
                     extractedText = transcriptionResult.text?.trim() ?? '';
                     language = transcriptionResult.language ?? 'en';
                     durationSeconds = transcriptionResult.duration ? Math.round(transcriptionResult.duration) : 0;
@@ -181,6 +220,18 @@ async function triggerLectureProcessing(lectureId, userId, options = {}) {
                         end: seg.end,
                         text: seg.text.trim()
                     }));
+                    if (segments.length > 0) {
+                        try {
+                            const { detectSpeakersInSegments } = await Promise.resolve().then(() => __importStar(require('./speakerDetectionService')));
+                            segments = await detectSpeakersInSegments(segments, {
+                                subject: lecture.subject || undefined,
+                                useLlm: true,
+                            });
+                        }
+                        catch (speakerErr) {
+                            console.error('Speaker detection failed, saving without labels:', speakerErr);
+                        }
+                    }
                 }
                 if (!extractedText) {
                     throw new Error('No readable speech or text detected in this lecture.');
@@ -208,6 +259,13 @@ async function triggerLectureProcessing(lectureId, userId, options = {}) {
                         updatedAt: new Date()
                     }
                 });
+                try {
+                    const { indexLectureRag } = await Promise.resolve().then(() => __importStar(require('./ragService')));
+                    await indexLectureRag(lectureId, userId, cleanedText);
+                }
+                catch (ragErr) {
+                    console.error('RAG indexing failed:', ragErr);
+                }
             }
             catch (err) {
                 const msg = err.message || 'Processing failed.';
@@ -283,7 +341,7 @@ async function triggerLectureProcessing(lectureId, userId, options = {}) {
                     });
                 }
                 try {
-                    const notesContent = await (0, notesGenerator_1.generateStructuredNotes)(sourceText, userId);
+                    const notesContent = await (0, notesGenerator_1.generateStructuredNotes)(sourceText, userId, { outputLanguage });
                     await db_1.prisma.lectureNote.update({
                         where: { id: notes.id },
                         data: {
@@ -300,7 +358,7 @@ async function triggerLectureProcessing(lectureId, userId, options = {}) {
                             updatedAt: new Date()
                         }
                     });
-                    void (0, conceptExtractor_1.extractAndStoreConcepts)(lectureId, userId, sourceText).catch((kgErr) => {
+                    void (0, conceptExtractor_1.extractAndStoreConcepts)(lectureId, userId, sourceText, { outputLanguage }).catch((kgErr) => {
                         console.error(`Knowledge graph extraction failed for lecture ${lectureId}:`, kgErr);
                     });
                 }
@@ -326,7 +384,7 @@ async function triggerLectureProcessing(lectureId, userId, options = {}) {
             if (conceptCount === 0 &&
                 lectureMeta?.kgStatus !== 'extracting' &&
                 lectureMeta?.kgStatus !== 'completed') {
-                void (0, conceptExtractor_1.extractAndStoreConcepts)(lectureId, userId, sourceText).catch((kgErr) => {
+                void (0, conceptExtractor_1.extractAndStoreConcepts)(lectureId, userId, sourceText, { outputLanguage }).catch((kgErr) => {
                     console.error(`Knowledge graph extraction failed for lecture ${lectureId}:`, kgErr);
                 });
             }

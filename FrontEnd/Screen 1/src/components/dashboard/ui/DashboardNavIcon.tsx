@@ -32,11 +32,6 @@ function getCategoryColors(id: string) {
         bg: 'bg-pink-500/10 dark:bg-pink-500/15',
         icon: 'text-pink-600 dark:text-pink-400',
       }
-    case 'knowledge-graph':
-      return {
-        bg: 'bg-amber-500/10 dark:bg-amber-500/15',
-        icon: 'text-amber-600 dark:text-amber-400',
-      }
     case 'ai-tutor':
       return {
         bg: 'bg-purple-500/10 dark:bg-purple-500/15',

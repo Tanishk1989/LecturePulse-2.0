@@ -14,6 +14,7 @@ export interface UserPreferences {
   ai: {
     summaryStyle: SummaryStyle
     transcriptionLanguage: string
+    outputLanguage: 'en' | 'match'
   }
   lastSeenChangelogVersion: string
 }
@@ -32,6 +33,7 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   ai: {
     summaryStyle: 'detailed',
     transcriptionLanguage: 'auto',
+    outputLanguage: 'en',
   },
   lastSeenChangelogVersion: '',
 }

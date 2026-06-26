@@ -1,6 +1,7 @@
 import { Router, Response } from 'express'
 import { AuthenticatedRequest, requireAuth } from '../middleware/auth'
 import { groqChatCompletion, getGroqClient, enhanceSystemPrompt } from '../services/groq'
+import { normalizeOutputLanguage } from '../services/outputLanguage'
 import { prisma } from '../config/db'
 import { transcribeFromUrl } from '../services/transcribeService'
 import { resolveYouTubeTranscriptionUrl } from '../services/youtubeService'
@@ -12,7 +13,7 @@ const router = Router()
 
 // POST /api/ai/chat - Proxy chat completion request to Groq SDK
 router.post('/chat', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
-  const { systemPrompt, userPrompt, temperature, model } = req.body
+  const { systemPrompt, userPrompt, temperature, model, outputLanguage } = req.body
 
   if (!systemPrompt || !userPrompt) {
     return res.status(400).json({ error: 'systemPrompt and userPrompt are required.' })
@@ -22,6 +23,7 @@ router.post('/chat', requireAuth, async (req: AuthenticatedRequest, res: Respons
     const content = await groqChatCompletion(systemPrompt, userPrompt, {
       temperature,
       model,
+      outputLanguage: normalizeOutputLanguage(outputLanguage),
     })
     res.json({ content })
   } catch (error) {
@@ -65,14 +67,16 @@ router.post('/transcribe-youtube', requireAuth, async (req: AuthenticatedRequest
 // POST /api/ai/generate-notes - Generate structured notes from transcript text
 router.post('/generate-notes', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.uid
-  const { transcript } = req.body
+  const { transcript, outputLanguage } = req.body
 
   if (!transcript || typeof transcript !== 'string' || !transcript.trim()) {
     return res.status(400).json({ error: 'lecture content is required.' })
   }
 
   try {
-    const content = await generateStructuredNotes(transcript, userId)
+    const content = await generateStructuredNotes(transcript, userId, {
+      outputLanguage: normalizeOutputLanguage(outputLanguage),
+    })
     res.json(content)
   } catch (error) {
     return sendRouteError(res, error, 'Notes generation failed.')
@@ -97,7 +101,7 @@ router.post('/extract-pdf', requireAuth, async (req: AuthenticatedRequest, res: 
 
 // POST /api/ai/stream-chat - Stream chat completion response using Server-Sent Events (SSE)
 router.post('/stream-chat', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
-  const { systemPrompt, userPrompt, temperature, model } = req.body
+  const { systemPrompt, userPrompt, temperature, model, outputLanguage } = req.body
 
   if (!systemPrompt || !userPrompt) {
     return res.status(400).json({ error: 'systemPrompt and userPrompt are required.' })
@@ -115,7 +119,12 @@ router.post('/stream-chat', requireAuth, async (req: AuthenticatedRequest, res: 
       model: model || 'llama-3.3-70b-versatile',
       temperature: temperature !== undefined ? temperature : 0.4,
       messages: [
-        { role: 'system', content: enhanceSystemPrompt(systemPrompt) },
+        {
+          role: 'system',
+          content: enhanceSystemPrompt(systemPrompt, {
+            outputLanguage: normalizeOutputLanguage(outputLanguage),
+          }),
+        },
         { role: 'user', content: userPrompt },
       ],
       stream: true,

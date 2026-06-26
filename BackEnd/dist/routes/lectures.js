@@ -77,7 +77,7 @@ router.patch('/:id', auth_1.requireAuth, async (req, res) => {
     const { id } = req.params;
     if (!userId)
         return res.status(401).json({ error: 'Unauthorized' });
-    const { title, favorite, status } = req.body;
+    const { title, favorite, status, subject, tags } = req.body;
     try {
         // Verify ownership
         const existing = await db_1.prisma.lecture.findFirst({
@@ -86,12 +86,25 @@ router.patch('/:id', auth_1.requireAuth, async (req, res) => {
         if (!existing) {
             return res.status(404).json({ error: 'Lecture not found.' });
         }
+        let normalizedTags;
+        if (tags !== undefined) {
+            if (!Array.isArray(tags)) {
+                return res.status(400).json({ error: 'tags must be an array of strings.' });
+            }
+            normalizedTags = tags
+                .filter((tag) => typeof tag === 'string')
+                .map((tag) => tag.trim())
+                .filter(Boolean)
+                .slice(0, 20);
+        }
         const updated = await db_1.prisma.lecture.update({
             where: { id },
             data: {
                 title: title !== undefined ? title.trim() : undefined,
                 favorite: favorite !== undefined ? favorite : undefined,
                 status: status !== undefined ? status : undefined,
+                subject: subject !== undefined ? (subject ? String(subject).trim() : null) : undefined,
+                tags: normalizedTags !== undefined ? normalizedTags : undefined,
             },
         });
         res.json(updated);
@@ -138,7 +151,7 @@ router.post('/:id/process', auth_1.requireAuth, async (req, res) => {
     const { id } = req.params;
     if (!userId)
         return res.status(401).json({ error: 'Unauthorized' });
-    const { generateNotes, forceRetranscribe } = req.body;
+    const { generateNotes, forceRetranscribe, transcriptionLanguage, outputLanguage } = req.body;
     try {
         const lecture = await db_1.prisma.lecture.findFirst({
             where: { id, userId },
@@ -158,6 +171,8 @@ router.post('/:id/process', auth_1.requireAuth, async (req, res) => {
         void (0, processingService_1.triggerLectureProcessing)(id, userId, {
             generateNotes: generateNotes !== false,
             forceRetranscribe: forceRetranscribe === true,
+            transcriptionLanguage: typeof transcriptionLanguage === 'string' ? transcriptionLanguage : undefined,
+            outputLanguage: typeof outputLanguage === 'string' ? outputLanguage : undefined,
         }).catch((err) => {
             console.error(`Background processing job failed for lecture ${id}:`, err);
         });

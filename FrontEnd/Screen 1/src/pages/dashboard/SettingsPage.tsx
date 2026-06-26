@@ -490,6 +490,28 @@ export function SettingsPage() {
             )}
 
             <label className="block">
+              <span className="text-xs font-medium text-muted">{translate('settings.outputLanguage')}</span>
+              <select
+                value={prefs.ai.outputLanguage ?? 'en'}
+                onChange={(e) =>
+                  updatePrefs({
+                    ai: {
+                      ...prefs.ai,
+                      outputLanguage: e.target.value === 'match' ? 'match' : 'en',
+                    },
+                  })
+                }
+                className="mt-1.5 w-full appearance-none rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-2.5 text-sm text-foreground outline-none focus:border-accent/30 cursor-pointer"
+              >
+                <option value="en" className="bg-card">English (recommended)</option>
+                <option value="match" className="bg-card">Match lecture language</option>
+              </select>
+              <p className="mt-1.5 text-xs text-muted">
+                Notes, flashcards, and quizzes are generated in English by default — even when your recording is in Hindi.
+              </p>
+            </label>
+
+            <label className="block">
               <span className="text-xs font-medium text-muted">{translate('settings.transcriptionLanguage')}</span>
               <select
                 value={prefs.ai.transcriptionLanguage}

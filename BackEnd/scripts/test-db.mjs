@@ -1,18 +1,24 @@
-import dotenv from 'dotenv'
+import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
 
-dotenv.config()
+const raw = process.env.DATABASE_URL?.trim()
+if (!raw) {
+  console.error('DATABASE_URL is not set')
+  process.exit(1)
+}
 
-const prisma = new PrismaClient()
+const url = raw.includes('sslmode=') ? raw : `${raw}${raw.includes('?') ? '&' : '?'}sslmode=require`
+
+const prisma = new PrismaClient({ datasources: { db: { url } } })
 
 try {
   await prisma.$queryRaw`SELECT 1`
-  console.log('Database connection: OK')
+  console.log('DB OK')
+  const count = await prisma.lecture.count()
+  console.log('lectures table OK, count:', count)
 } catch (error) {
-  const message = error instanceof Error ? error.message : String(error)
-  console.error('Database connection: FAIL')
-  console.error(message)
-  process.exitCode = 1
+  console.error('DB FAIL:', error.message)
+  process.exit(1)
 } finally {
   await prisma.$disconnect()
 }

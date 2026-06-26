@@ -82,18 +82,26 @@ app.use((_req, res) => {
   res.status(404).json({ error: 'Endpoint not found.' })
 })
 
-app.listen(PORT, () => {
-  console.log(`LecturePulse 2.0 Backend listening on port ${PORT}`)
-  console.log(`Local uploads served from ${path.resolve(UPLOADS_ROOT)}`)
-  void prisma.$queryRaw`SELECT 1`
-    .then(() => console.log('Database connection: OK'))
-    .catch((error) => {
-      console.error(
-        'Database connection: FAILED —',
-        error instanceof Error ? error.message : error,
-      )
-      console.error(
-        'Tip: If using Supabase, open the project dashboard and resume the database, then check DATABASE_URL in BackEnd/.env.',
-      )
-    })
-})
+async function startServer() {
+  try {
+    console.log('Connecting to database…')
+    await prisma.$queryRaw`SELECT 1`
+    console.log('Database connection: OK')
+  } catch (error) {
+    console.error(
+      'Database connection: FAILED —',
+      error instanceof Error ? error.message : error,
+    )
+    console.error(
+      'Tip: Open the Supabase dashboard, resume the project if paused, and verify DATABASE_URL in BackEnd/.env (use port 5432 for local dev).',
+    )
+    process.exit(1)
+  }
+
+  app.listen(PORT, () => {
+    console.log(`LecturePulse 2.0 Backend listening on port ${PORT}`)
+    console.log(`Local uploads served from ${path.resolve(UPLOADS_ROOT)}`)
+  })
+}
+
+void startServer()

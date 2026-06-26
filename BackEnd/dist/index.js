@@ -18,6 +18,9 @@ const uploads_1 = __importDefault(require("./routes/uploads"));
 const profiles_1 = __importDefault(require("./routes/profiles"));
 const streaks_1 = __importDefault(require("./routes/streaks"));
 const examCountdown_1 = __importDefault(require("./routes/examCountdown"));
+const search_1 = __importDefault(require("./routes/search"));
+const shares_1 = __importDefault(require("./routes/shares"));
+const analytics_1 = __importDefault(require("./routes/analytics"));
 const storage_1 = require("./config/storage");
 const db_1 = require("./config/db");
 const apiError_1 = require("./utils/apiError");
@@ -37,6 +40,9 @@ app.use('/api/uploads', uploads_1.default);
 app.use('/api/profiles', profiles_1.default);
 app.use('/api/streaks', streaks_1.default);
 app.use('/api/exam-countdown', examCountdown_1.default);
+app.use('/api/search', search_1.default);
+app.use('/api/shares', shares_1.default);
+app.use('/api/analytics', analytics_1.default);
 app.get('/', (_req, res) => {
     res.json({
         name: 'LecturePulse API',

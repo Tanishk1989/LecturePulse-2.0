@@ -6,12 +6,14 @@ import { resolveYouTubeTranscriptionUrl, downloadYouTubeAudio } from './youtubeS
 import { isYouTubeUrl, parseYouTubeVideoId } from './youtubeUtils'
 import { readFileBufferFromUrl } from '../config/storage'
 import { groqChatCompletion } from './groq'
+import { normalizeOutputLanguage } from './outputLanguage'
 import pdfParse from 'pdf-parse'
 
 export interface ProcessLectureOptions {
   generateNotes?: boolean
   forceRetranscribe?: boolean
   transcriptionLanguage?: string
+  outputLanguage?: string
 }
 
 export { parseYouTubeVideoId, isYouTubeUrl }
@@ -36,6 +38,7 @@ Rules:
   return groqChatCompletion(systemPrompt, rawTranscript, {
     model: 'llama-3.3-70b-versatile',
     temperature: 0.2,
+    transcriptOnly: true,
   })
 }
 
@@ -129,6 +132,7 @@ export async function triggerLectureProcessing(
     options.transcriptionLanguage && options.transcriptionLanguage !== 'auto'
       ? options.transcriptionLanguage
       : undefined
+  const outputLanguage = normalizeOutputLanguage(options.outputLanguage)
 
   try {
     const lecture = await prisma.lecture.findFirst({
@@ -342,7 +346,7 @@ export async function triggerLectureProcessing(
         }
 
         try {
-          const notesContent = await generateStructuredNotes(sourceText, userId)
+          const notesContent = await generateStructuredNotes(sourceText, userId, { outputLanguage })
 
           await prisma.lectureNote.update({
             where: { id: notes.id },
@@ -361,7 +365,7 @@ export async function triggerLectureProcessing(
             }
           })
 
-          void extractAndStoreConcepts(lectureId, userId, sourceText).catch((kgErr) => {
+          void extractAndStoreConcepts(lectureId, userId, sourceText, { outputLanguage }).catch((kgErr) => {
             console.error(`Knowledge graph extraction failed for lecture ${lectureId}:`, kgErr)
           })
         } catch (err: any) {
@@ -389,7 +393,7 @@ export async function triggerLectureProcessing(
         lectureMeta?.kgStatus !== 'extracting' &&
         lectureMeta?.kgStatus !== 'completed'
       ) {
-        void extractAndStoreConcepts(lectureId, userId, sourceText).catch((kgErr) => {
+        void extractAndStoreConcepts(lectureId, userId, sourceText, { outputLanguage }).catch((kgErr) => {
           console.error(`Knowledge graph extraction failed for lecture ${lectureId}:`, kgErr)
         })
       }

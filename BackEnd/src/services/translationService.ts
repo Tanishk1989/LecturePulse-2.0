@@ -22,6 +22,6 @@ export async function translateText(
   return groqChatCompletion(
     `You are a precise academic translator. Translate ${contextLabel} to ${target}. Preserve structure, headings, and bullet points. Return only the translation.`,
     text.slice(0, 120000),
-    { temperature: 0.2 },
+    { temperature: 0.2, skipEnhancement: true },
   )
 }

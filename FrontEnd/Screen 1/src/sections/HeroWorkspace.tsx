@@ -241,7 +241,7 @@ export function HeroWorkspace() {
       >
         <div className="floating-card rounded-2xl p-5 w-[300px] md:w-[360px] shadow-[0_0_80px_rgba(79,70,229,0.2),0_0_40px_rgba(16,185,129,0.08)] border-[#4F46E5]/20 cursor-pointer glow-hover">
           <div className="text-[10px] font-semibold tracking-[0.2em] uppercase text-accent mb-3">
-            Knowledge Graph
+            Smart Notes
           </div>
           <svg viewBox="0 0 400 240" className="w-full">
             {edges.map(([from, to], i) => {

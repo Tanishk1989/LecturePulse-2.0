@@ -5,17 +5,30 @@ function resolveDatabaseUrl(): string {
 
   if (!raw) {
     throw new Error(
-      'DATABASE_URL is not set. Add your Supabase Postgres URI to Render environment variables.',
+      'DATABASE_URL is not set. Add your Supabase Postgres URI to BackEnd/.env (local) or Render environment variables.',
     )
   }
 
-  // Supabase requires SSL; append if the Connect URI omits it.
-  if (!raw.includes('sslmode=')) {
-    const separator = raw.includes('?') ? '&' : '?'
-    return `${raw}${separator}sslmode=require`
+  let url = raw
+
+  // Supabase transaction pooler (port 6543) requires pgbouncer mode for Prisma.
+  if (url.includes(':6543/') && !url.includes('pgbouncer=')) {
+    const separator = url.includes('?') ? '&' : '?'
+    url = `${url}${separator}pgbouncer=true`
   }
 
-  return raw
+  // Supabase requires SSL when omitted from the connection URI.
+  if (!url.includes('sslmode=')) {
+    const separator = url.includes('?') ? '&' : '?'
+    url = `${url}${separator}sslmode=require`
+  }
+
+  if (!url.includes('connect_timeout=')) {
+    const separator = url.includes('?') ? '&' : '?'
+    url = `${url}${separator}connect_timeout=30`
+  }
+
+  return url
 }
 
 const databaseUrl = resolveDatabaseUrl()

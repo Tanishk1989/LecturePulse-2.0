@@ -8,6 +8,7 @@ import { DashboardPageHeader, DashboardPageShell } from '@/components/dashboard/
 import { Skeleton } from '@/components/dashboard/ui/Skeleton'
 import { useExamFocus } from '@/hooks/useExamFocus'
 import { formatExamFocusTime } from '@/lib/examFocus'
+import { ExamTipLine } from '@/components/exam-focus/ExamTipLine'
 import { cn } from '@/lib/utils'
 
 function ExamFocusBackground() {
@@ -99,7 +100,7 @@ export function ExamFocusPage() {
                   <Skeleton className="h-10 w-3/4 rounded-lg" />
                 ) : upcomingTopic ? (
                   <>
-                    <p className="font-heading text-3xl text-foreground">{upcomingTopic}</p>
+                    <ExamTipLine text={upcomingTopic} variant="hero" />
                     {upcomingLectureId && (
                       <Link
                         to={`/notes/${upcomingLectureId}`}
@@ -129,12 +130,9 @@ export function ExamFocusPage() {
                 )}
 
                 {!loading && focusAreas.length > 0 && (
-                  <ul className="mt-6 space-y-2 border-t border-white/[0.06] pt-5">
+                  <ul className="mt-6 space-y-3 border-t border-white/[0.06] pt-5">
                     {focusAreas.slice(0, 4).map((area) => (
-                      <li key={area.id} className="flex items-start gap-2 text-sm text-foreground/90">
-                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                        <span className="line-clamp-2">{area.title}</span>
-                      </li>
+                      <ExamTipLine key={area.id} text={area.title} />
                     ))}
                   </ul>
                 )}
@@ -205,11 +203,9 @@ export function ExamFocusPage() {
               <AlertTriangle className="h-4 w-4 text-accent" strokeWidth={1.75} />
               <p className="text-sm font-medium text-foreground">Common mistakes to avoid</p>
             </div>
-            <ul className="space-y-2">
-              {commonMistakes.map((mistake) => (
-                <li key={mistake} className="text-sm text-muted leading-relaxed">
-                  {mistake}
-                </li>
+            <ul className="divide-y divide-white/[0.06]">
+              {commonMistakes.map((mistake, index) => (
+                <ExamTipLine key={mistake} text={mistake} variant="mistake" index={index} />
               ))}
             </ul>
           </div>

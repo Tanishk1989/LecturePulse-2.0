@@ -1,6 +1,7 @@
 import { groqChatCompletion } from './groq'
 import { parseJsonFromAi } from '../utils/parseJsonFromAi'
 import { prisma } from '../config/db'
+import { normalizeOutputLanguage, type AiOutputLanguage } from './outputLanguage'
 
 export interface ExtractedConcept {
   name: string
@@ -32,7 +33,10 @@ Return ONLY valid JSON matching this schema:
 
 Use exact concept names in links. Do not wrap in markdown. Rely only on the transcript.`
 
-export async function extractConcepts(transcript: string): Promise<ConceptExtractionResult> {
+export async function extractConcepts(
+  transcript: string,
+  outputLanguage: AiOutputLanguage = 'en',
+): Promise<ConceptExtractionResult> {
   if (!transcript.trim()) {
     return { concepts: [], links: [] }
   }
@@ -40,7 +44,7 @@ export async function extractConcepts(transcript: string): Promise<ConceptExtrac
   const raw = await groqChatCompletion(
     CONCEPT_EXTRACTION_SYSTEM_PROMPT,
     `Lecture transcript:\n\n${transcript.slice(0, 120000)}`,
-    { temperature: 0.3, jsonMode: true },
+    { temperature: 0.3, jsonMode: true, outputLanguage },
   )
 
   const parsed = parseJsonFromAi<ConceptExtractionResult>(raw)
@@ -78,14 +82,16 @@ export async function extractAndStoreConcepts(
   lectureId: string,
   userId: string,
   transcript: string,
+  options?: { outputLanguage?: string },
 ): Promise<void> {
+  const outputLanguage = normalizeOutputLanguage(options?.outputLanguage)
   await prisma.lecture.update({
     where: { id: lectureId },
     data: { kgStatus: 'extracting', updatedAt: new Date() },
   })
 
   try {
-    const { concepts, links } = await extractConcepts(transcript)
+    const { concepts, links } = await extractConcepts(transcript, outputLanguage)
 
     await prisma.$transaction(async (tx) => {
       await tx.kgLink.deleteMany({ where: { lectureId, userId } })

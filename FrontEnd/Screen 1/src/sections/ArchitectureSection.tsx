@@ -5,7 +5,6 @@ import {
   Brain,
   BookOpen,
   Layers,
-  Network,
   Target,
   Bot,
   Sparkles,
@@ -52,7 +51,6 @@ const pipeline = [
 const outputs = [
   { label: 'Smart Notes', icon: BookOpen, hint: 'Clean, searchable study notes' },
   { label: 'Flashcards', icon: Layers, hint: 'Auto-generated with FSRS scheduling' },
-  { label: 'Knowledge Graph', icon: Network, hint: 'Visual mastery map of concepts' },
   { label: 'Exam Oracle', icon: Target, hint: 'Predicted high-yield exam topics' },
 ]
 

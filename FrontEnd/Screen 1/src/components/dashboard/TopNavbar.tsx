@@ -42,7 +42,7 @@ export function TopNavbar() {
 
   if (mobileSearchOpen) {
     return (
-      <header className="sticky top-0 z-30 border-b border-white/[0.06] bg-background/80 backdrop-blur-xl">
+      <header className="topbar-glass sticky top-0 z-30">
         <div className="flex h-14 items-center gap-3 px-4 w-full">
           <button
             type="button"
@@ -76,7 +76,7 @@ export function TopNavbar() {
   }
 
   return (
-    <header className="sticky top-0 z-30 border-b border-white/[0.06] bg-background/80 backdrop-blur-xl">
+    <header className="topbar-glass sticky top-0 z-30">
       <div className="flex h-14 items-center justify-between gap-4 px-5 lg:px-8">
         <div className="flex items-center gap-3 shrink-0">
           <button
@@ -154,7 +154,7 @@ export function TopNavbar() {
 
           <button
             onClick={toggleTheme}
-            className="hidden sm:flex p-2 rounded-lg text-muted hover:text-foreground hover:bg-white/[0.04] transition-all duration-300 cursor-pointer items-center justify-center shrink-0 border-0 bg-transparent"
+            className="flex p-2 rounded-lg text-muted hover:text-foreground hover:bg-white/[0.04] transition-all duration-200 cursor-pointer items-center justify-center shrink-0 border-0 bg-transparent"
             aria-label="Toggle theme"
             title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           >
