@@ -1,6 +1,7 @@
 import { groqTranscribeBuffer } from './groq'
 import { readFileBufferFromUrl } from '../config/storage'
 import { prisma } from '../config/db'
+import { convertBufferToMonoWav } from './audioConvertService'
 
 function extensionFromContentType(contentType: string | null): string {
   if (!contentType) return 'webm'
@@ -109,6 +110,119 @@ function splitWavBuffer(
   return chunks
 }
 
+const GROQ_MAX_BYTES = 20 * 1024 * 1024 // stay under Groq's ~25MB limit
+
+function getSafeChunkDurationSeconds(wavInfo: WavHeaderInfo): number {
+  const headerOverhead = wavInfo.dataOffset + 8
+  const maxAudioBytes = GROQ_MAX_BYTES - headerOverhead
+  const seconds = Math.floor(maxAudioBytes / wavInfo.byteRate)
+  // Between 2 and 6 minutes per chunk depending on sample rate / channels.
+  return Math.max(120, Math.min(360, seconds))
+}
+
+async function prepareWavBuffer(
+  buffer: Buffer,
+  ext: string,
+): Promise<{ buffer: Buffer; wavInfo: WavHeaderInfo }> {
+  let workingBuffer = buffer
+  let wavInfo = parseWavHeader(workingBuffer)
+
+  const mustNormalize =
+    !wavInfo ||
+    workingBuffer.length > GROQ_MAX_BYTES ||
+    wavInfo.sampleRate > 16000 ||
+    wavInfo.numChannels > 1
+
+  if (mustNormalize) {
+    workingBuffer = await convertBufferToMonoWav(workingBuffer, wavInfo ? 'wav' : ext)
+    wavInfo = parseWavHeader(workingBuffer)
+  }
+
+  if (!wavInfo) {
+    throw new Error(
+      'Could not prepare audio for transcription. Install ffmpeg and restart the backend, then try again.',
+    )
+  }
+
+  return { buffer: workingBuffer, wavInfo }
+}
+
+async function transcribeWavInChunks(
+  workingBuffer: Buffer,
+  wavInfo: WavHeaderInfo,
+  language: string | undefined,
+  lectureId: string | undefined,
+  subject: string | undefined,
+): Promise<{
+  text: string
+  language?: string
+  duration?: number
+  segments?: Array<{ id: number; start: number; end: number; text: string }>
+}> {
+  const chunkDuration = getSafeChunkDurationSeconds(wavInfo)
+  const wavChunks = splitWavBuffer(workingBuffer, wavInfo, chunkDuration)
+  const totalChunks = wavChunks.length
+
+  let combinedText = ''
+  let combinedSegments: Array<{ id: number; start: number; end: number; text: string }> = []
+  let resolvedLanguage = language || 'en'
+
+  for (let i = 0; i < totalChunks; i++) {
+    if (wavChunks[i].length > GROQ_MAX_BYTES) {
+      throw new Error(
+        `Internal chunking error: part ${i + 1} is still too large. Contact support.`,
+      )
+    }
+
+    if (lectureId) {
+      try {
+        const existing = await prisma.transcript.findFirst({ where: { lectureId } })
+        if (existing) {
+          await prisma.transcript.update({
+            where: { id: existing.id },
+            data: { status: `transcribing_part_${i + 1}_of_${totalChunks}` },
+          })
+        }
+      } catch (dbErr) {
+        console.error('Failed to update chunk status in database:', dbErr)
+      }
+    }
+
+    const chunkResult = await groqTranscribeBuffer(
+      wavChunks[i],
+      `audio_part_${i + 1}.wav`,
+      'audio/wav',
+      language,
+      subject,
+    )
+
+    if (chunkResult.language) {
+      resolvedLanguage = chunkResult.language
+    }
+
+    const chunkText = chunkResult.text?.trim() ?? ''
+    if (chunkText) {
+      combinedText += (combinedText ? ' ' : '') + chunkText
+    }
+
+    const chunkOffsetSeconds = i * chunkDuration
+    const chunkSegments = (chunkResult.segments ?? []).map((seg, idx) => ({
+      id: combinedSegments.length + idx,
+      start: seg.start + chunkOffsetSeconds,
+      end: seg.end + chunkOffsetSeconds,
+      text: seg.text,
+    }))
+    combinedSegments = combinedSegments.concat(chunkSegments)
+  }
+
+  return {
+    text: combinedText,
+    language: resolvedLanguage,
+    duration: wavInfo.duration,
+    segments: combinedSegments,
+  }
+}
+
 export async function transcribeFromUrl(
   audioUrl: string,
   language?: string,
@@ -135,75 +249,22 @@ export async function transcribeFromUrl(
 
   const ext = extensionFromContentType(resolvedContentType)
 
-  // Parse WAV header to check duration
-  const wavInfo = parseWavHeader(buffer)
-  const duration = wavInfo ? wavInfo.duration : 0
+  try {
+    const { buffer: workingBuffer, wavInfo } = await prepareWavBuffer(buffer, ext)
+    const needsChunking =
+      wavInfo.duration > 600 || workingBuffer.length > GROQ_MAX_BYTES
 
-  // We chunk if duration > 10 minutes (600 seconds)
-  if (wavInfo && duration > 600) {
-    const chunkDuration = 480 // 8 minutes per chunk
-    const wavChunks = splitWavBuffer(buffer, wavInfo, chunkDuration)
-    const totalChunks = wavChunks.length
-
-    let combinedText = ''
-    let combinedSegments: Array<{ id: number; start: number; end: number; text: string }> = []
-    let resolvedLanguage = language || 'en'
-
-    for (let i = 0; i < totalChunks; i++) {
-      // Update status in the database if lectureId is provided
-      if (lectureId) {
-        try {
-          const existing = await prisma.transcript.findFirst({
-            where: { lectureId },
-          })
-          if (existing) {
-            await prisma.transcript.update({
-              where: { id: existing.id },
-              data: { status: `transcribing_part_${i + 1}_of_${totalChunks}` },
-            })
-          }
-        } catch (dbErr) {
-          console.error('Failed to update chunk status in database:', dbErr)
-        }
-      }
-
-      // Transcribe chunk
-      const chunkResult = await groqTranscribeBuffer(
-        wavChunks[i],
-        `audio_part_${i + 1}.${ext}`,
-        resolvedContentType,
-        language,
-        subject,
-      )
-
-      if (chunkResult.language) {
-        resolvedLanguage = chunkResult.language
-      }
-
-      const chunkText = chunkResult.text?.trim() ?? ''
-      if (chunkText) {
-        combinedText += (combinedText ? ' ' : '') + chunkText
-      }
-
-      // Shift segments timestamps by chunk offset
-      const chunkOffsetSeconds = i * chunkDuration
-      const chunkSegments = (chunkResult.segments ?? []).map((seg, idx) => ({
-        id: combinedSegments.length + idx,
-        start: seg.start + chunkOffsetSeconds,
-        end: seg.end + chunkOffsetSeconds,
-        text: seg.text,
-      }))
-      combinedSegments = combinedSegments.concat(chunkSegments)
+    if (needsChunking) {
+      return transcribeWavInChunks(workingBuffer, wavInfo, language, lectureId, subject)
     }
 
-    return {
-      text: combinedText,
-      language: resolvedLanguage,
-      duration,
-      segments: combinedSegments,
+    return groqTranscribeBuffer(workingBuffer, 'audio.wav', 'audio/wav', language, subject)
+  } catch (prepErr) {
+    // Last resort for small compressed files that fit in one Groq request.
+    if (buffer.length <= GROQ_MAX_BYTES) {
+      console.error('WAV prep failed, trying direct transcription:', prepErr)
+      return groqTranscribeBuffer(buffer, `audio.${ext}`, resolvedContentType, language, subject)
     }
+    throw prepErr
   }
-
-  // Fallback to normal transcription for short recordings or non-WAV
-  return groqTranscribeBuffer(buffer, `audio.${ext}`, resolvedContentType, language, subject)
 }

@@ -10,6 +10,9 @@ export interface LectureProcessingStatus {
   transcriptStatus: string | null
   notesStatus: string | null
   isProcessing: boolean
+  stage?: 'transcribing' | 'generating_notes' | 'ready' | 'failed'
+  message?: string
+  progressPercent?: number
 }
 
 const POLL_INTERVAL_MS = 3000
@@ -44,25 +47,10 @@ export async function enqueueLectureProcessing(
 }
 
 export async function getLectureProcessingStatus(
-  userId: string,
+  _userId: string,
   lectureId: string,
 ): Promise<LectureProcessingStatus> {
-  const [lecture, transcript, notes] = await Promise.all([
-    apiFetch<{ status: string }>(`/lectures/${lectureId}`).catch(() => ({ status: 'uploaded' })),
-    apiFetch<{ status: string }>(`/transcripts/lecture/${lectureId}`).catch(() => null),
-    apiFetch<{ status: string }>(`/notes/lecture/${lectureId}`).catch(() => null),
-  ])
-
-  const lectureStatus = lecture?.status ?? 'uploaded'
-  const transcriptStatus = transcript?.status ?? null
-  const notesStatus = notes?.status ?? null
-
-  const isProcessing =
-    lectureStatus === 'processing' ||
-    transcriptStatus === 'processing' ||
-    notesStatus === 'generating'
-
-  return { lectureStatus, transcriptStatus, notesStatus, isProcessing }
+  return apiFetch<LectureProcessingStatus>(`/lectures/${lectureId}/processing-status`)
 }
 
 export function pollUntilProcessingDone(

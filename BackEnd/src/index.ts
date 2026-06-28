@@ -82,19 +82,36 @@ app.use((_req, res) => {
   res.status(404).json({ error: 'Endpoint not found.' })
 })
 
+async function connectDatabase(maxAttempts = 5): Promise<void> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      console.log(`Connecting to database (attempt ${attempt}/${maxAttempts})…`)
+      await prisma.$queryRaw`SELECT 1`
+      console.log('Database connection: OK')
+      return
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      console.error(`Database connection attempt ${attempt} failed:`, message)
+
+      if (attempt < maxAttempts) {
+        const delayMs = 4000 * attempt
+        console.log(`Retrying in ${delayMs / 1000}s…`)
+        await new Promise((resolve) => setTimeout(resolve, delayMs))
+        continue
+      }
+
+      console.error(
+        'Database connection: FAILED after all retries. Check DATABASE_URL on Render — use port 5432 on db.PROJECT.supabase.co (direct), not port 6543 on the db host.',
+      )
+      throw error
+    }
+  }
+}
+
 async function startServer() {
   try {
-    console.log('Connecting to database…')
-    await prisma.$queryRaw`SELECT 1`
-    console.log('Database connection: OK')
-  } catch (error) {
-    console.error(
-      'Database connection: FAILED —',
-      error instanceof Error ? error.message : error,
-    )
-    console.error(
-      'Tip: Open the Supabase dashboard, resume the project if paused, and verify DATABASE_URL in BackEnd/.env (use port 5432 for local dev).',
-    )
+    await connectDatabase()
+  } catch {
     process.exit(1)
   }
 

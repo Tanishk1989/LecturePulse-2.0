@@ -75,13 +75,38 @@ app.get('/api/health/db', async (_req, res) => {
 app.use((_req, res) => {
     res.status(404).json({ error: 'Endpoint not found.' });
 });
-app.listen(PORT, () => {
-    console.log(`LecturePulse 2.0 Backend listening on port ${PORT}`);
-    console.log(`Local uploads served from ${path_1.default.resolve(storage_1.UPLOADS_ROOT)}`);
-    void db_1.prisma.$queryRaw `SELECT 1`
-        .then(() => console.log('Database connection: OK'))
-        .catch((error) => {
-        console.error('Database connection: FAILED —', error instanceof Error ? error.message : error);
-        console.error('Tip: If using Supabase, open the project dashboard and resume the database, then check DATABASE_URL in BackEnd/.env.');
+async function connectDatabase(maxAttempts = 5) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        try {
+            console.log(`Connecting to database (attempt ${attempt}/${maxAttempts})…`);
+            await db_1.prisma.$queryRaw `SELECT 1`;
+            console.log('Database connection: OK');
+            return;
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            console.error(`Database connection attempt ${attempt} failed:`, message);
+            if (attempt < maxAttempts) {
+                const delayMs = 4000 * attempt;
+                console.log(`Retrying in ${delayMs / 1000}s…`);
+                await new Promise((resolve) => setTimeout(resolve, delayMs));
+                continue;
+            }
+            console.error('Database connection: FAILED after all retries. Check DATABASE_URL on Render — use port 5432 on db.PROJECT.supabase.co (direct), not port 6543 on the db host.');
+            throw error;
+        }
+    }
+}
+async function startServer() {
+    try {
+        await connectDatabase();
+    }
+    catch {
+        process.exit(1);
+    }
+    app.listen(PORT, () => {
+        console.log(`LecturePulse 2.0 Backend listening on port ${PORT}`);
+        console.log(`Local uploads served from ${path_1.default.resolve(storage_1.UPLOADS_ROOT)}`);
     });
-});
+}
+void startServer();

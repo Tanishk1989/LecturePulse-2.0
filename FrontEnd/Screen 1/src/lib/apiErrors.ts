@@ -34,6 +34,14 @@ export function sanitizeApiErrorMessage(message: string, code?: string): string 
     return DB_UNAVAILABLE_MESSAGE
   }
 
+  if (
+    lower.includes('invalid api key') ||
+    lower.includes('invalid_api_key') ||
+    lower.includes('groq api key')
+  ) {
+    return 'Groq API key is missing or invalid. Create a new key at console.groq.com, set GROQ_API_KEY in BackEnd/.env, and restart the backend.'
+  }
+
   if (message.startsWith('Request failed:') && message.length < 80) {
     return GENERIC_SERVER_MESSAGE
   }

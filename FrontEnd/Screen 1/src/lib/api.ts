@@ -34,6 +34,7 @@ export async function apiFetch<T>(
   const response = await fetch(`${BACKEND_URL}${endpoint}`, {
     ...options,
     headers,
+    signal: options.signal ?? AbortSignal.timeout(45_000),
   })
 
   if (!response.ok) {

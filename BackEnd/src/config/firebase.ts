@@ -3,12 +3,16 @@ import * as path from 'path'
 import * as fs from 'fs'
 
 function getCredential(): admin.ServiceAccount | admin.credential.Credential {
-  const envKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY
-  if (envKey) {
+  const envJson =
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY ||
+    process.env.FIREBASE_SERVICE_ACCOUNT ||
+    process.env.FIREBASE_SERVICE_ACCOUNT_JSON
+
+  if (envJson) {
     try {
-      return JSON.parse(envKey) as admin.ServiceAccount
+      return JSON.parse(envJson) as admin.ServiceAccount
     } catch (e) {
-      console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY env string:', e)
+      console.error('Failed to parse Firebase service account JSON from environment:', e)
     }
   }
 

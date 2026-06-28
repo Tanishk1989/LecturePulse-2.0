@@ -1,10 +1,11 @@
 import { execFile, execSync } from 'child_process'
-import { existsSync, readdirSync } from 'fs'
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'fs'
 import path from 'path'
 import { promisify } from 'util'
 import { Innertube } from 'youtubei.js'
 import { parseYouTubeVideoId } from './youtubeUtils'
 import { LECTURES_CATEGORY, getAbsolutePath, buildFileUrl } from '../config/storage'
+import { convertBufferToMonoWav, isFfmpegAvailable } from './audioConvertService'
 
 const execFileAsync = promisify(execFile)
 
@@ -146,35 +147,56 @@ export async function resolveYouTubeTranscriptionUrl(youtubeUrl: string): Promis
 }
 
 export async function downloadYouTubeAudio(youtubeUrl: string, lectureId: string): Promise<string> {
+  // Reuse already-downloaded audio (supports legacy .webm and new .wav paths).
+  for (const ext of ['wav', 'webm', 'm4a', 'mp3']) {
+    const relativePath = `${lectureId}.${ext}`
+    const absolutePath = getAbsolutePath(LECTURES_CATEGORY, relativePath)
+    if (existsSync(absolutePath)) {
+      return buildFileUrl(LECTURES_CATEGORY, relativePath)
+    }
+  }
+
   const videoId = parseYouTubeVideoId(youtubeUrl)
   if (!videoId) {
     throw new Error('Invalid YouTube URL.')
   }
 
-  const relativePath = `${lectureId}.webm`
+  const useWavOutput = isFfmpegAvailable()
+  const relativePath = useWavOutput ? `${lectureId}.wav` : `${lectureId}.webm`
   const absolutePath = getAbsolutePath(LECTURES_CATEGORY, relativePath)
-
-  if (existsSync(absolutePath)) {
-    return buildFileUrl(LECTURES_CATEGORY, relativePath)
-  }
 
   const watchUrl = `https://www.youtube.com/watch?v=${videoId}`
   let downloaded = false
   let lastError: any = null
 
+  const downloadArgs = useWavOutput
+    ? [
+        '-f',
+        'bestaudio/best',
+        '-x',
+        '--audio-format',
+        'wav',
+        '--postprocessor-args',
+        'ffmpeg:-ar 16000 -ac 1',
+        '-o',
+        absolutePath,
+        ...YT_DLP_ARGS,
+        watchUrl,
+      ]
+    : [
+        '-f',
+        'bestaudio[filesize<24M]/bestaudio/best',
+        '-o',
+        absolutePath,
+        ...YT_DLP_ARGS,
+        watchUrl,
+      ]
+
   for (const runner of discoverYtDlpRunners()) {
     try {
       await execFileAsync(
         runner.command,
-        [
-          ...runner.prefix,
-          '-f',
-          'bestaudio/best',
-          '-o',
-          absolutePath,
-          ...YT_DLP_ARGS,
-          watchUrl,
-        ],
+        [...runner.prefix, ...downloadArgs],
         { timeout: 180_000, windowsHide: true, maxBuffer: 10 * 1024 * 1024 },
       )
       if (existsSync(absolutePath)) {
@@ -187,20 +209,37 @@ export async function downloadYouTubeAudio(youtubeUrl: string, lectureId: string
     }
   }
 
+  if (!downloaded && useWavOutput) {
+    const webmPath = absolutePath.replace(/\.wav$/, '.webm')
+    if (existsSync(webmPath)) {
+      try {
+        const wavBuffer = await convertBufferToMonoWav(readFileSync(webmPath), 'webm')
+        writeFileSync(absolutePath, wavBuffer)
+        downloaded = true
+      } catch (convertErr) {
+        lastError = convertErr
+      }
+    }
+  }
+
   if (!downloaded) {
     // Attempt fallback with Innertube and fetching
     try {
       const directUrl = await resolveViaInnertube(videoId)
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 60_000)
+      const timeoutId = setTimeout(() => controller.abort(), 120_000)
       const response = await fetch(directUrl, { signal: controller.signal })
       clearTimeout(timeoutId)
       if (!response.ok) {
         throw new Error(`Failed to fetch YouTube audio stream (${response.status})`)
       }
-      const buffer = Buffer.from(await response.arrayBuffer())
-      const fs = require('fs')
-      fs.writeFileSync(absolutePath, buffer)
+      const rawBuffer = Buffer.from(await response.arrayBuffer())
+      try {
+        const wavBuffer = await convertBufferToMonoWav(rawBuffer, 'webm')
+        writeFileSync(absolutePath, wavBuffer)
+      } catch {
+        writeFileSync(absolutePath, rawBuffer)
+      }
       downloaded = true
     } catch (fallbackError) {
       throw new Error(

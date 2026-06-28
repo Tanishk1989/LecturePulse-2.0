@@ -4,6 +4,7 @@ import { AuthenticatedRequest, requireAuth } from '../middleware/auth'
 import { deleteFileByUrl } from '../config/storage'
 import { triggerLectureProcessing } from '../services/processingService'
 import { sendRouteError } from '../utils/apiError'
+import { deriveProcessingStatus, isProcessingStale } from '../utils/processingStatus'
 
 const router = Router()
 
@@ -20,6 +21,64 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =>
     res.json(lectures)
   } catch (error) {
     return sendRouteError(res, error, 'Failed to retrieve lectures.')
+  }
+})
+
+// GET /api/lectures/:id/processing-status - Combined status for polling (single DB round-trip)
+router.get('/:id/processing-status', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user?.uid
+  const { id } = req.params
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
+  try {
+    const lecture = await prisma.lecture.findFirst({
+      where: { id, userId },
+      select: { status: true, updatedAt: true },
+    })
+
+    if (!lecture) {
+      return res.status(404).json({ error: 'Lecture not found.' })
+    }
+
+    const [transcript, notes] = await Promise.all([
+      prisma.transcript.findFirst({
+        where: { lectureId: id, userId },
+        select: { id: true, status: true, updatedAt: true },
+      }),
+      prisma.lectureNote.findFirst({
+        where: { lectureId: id, userId },
+        select: { status: true },
+      }),
+    ])
+
+    let lectureStatus = lecture.status
+    const transcriptStatus = transcript?.status ?? null
+    const notesStatus = notes?.status ?? null
+
+    let derived = deriveProcessingStatus(lectureStatus, transcriptStatus, notesStatus)
+
+    const lastActivity = transcript?.updatedAt ?? lecture.updatedAt
+    if (derived.isProcessing && isProcessingStale(lastActivity)) {
+      await prisma.lecture.update({
+        where: { id },
+        data: { status: 'failed' },
+      })
+      if (transcript) {
+        await prisma.transcript.update({
+          where: { id: transcript.id },
+          data: {
+            status: 'failed',
+            errorMessage: 'Processing timed out. Please try again.',
+          },
+        }).catch(() => {})
+      }
+      lectureStatus = 'failed'
+      derived = deriveProcessingStatus('failed', 'failed', notesStatus)
+    }
+
+    res.json(derived)
+  } catch (error) {
+    return sendRouteError(res, error, 'Failed to retrieve processing status.')
   }
 })
 

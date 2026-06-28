@@ -118,14 +118,22 @@ export function useTranscription(
       setTranscript(existing)
       setIsBackgroundProcessing(processingStatus.isProcessing)
 
-      if (existing?.status === 'completed') {
+      if (processingStatus.isProcessing) {
+        setPhase('transcribing')
+        setTranscriptionProgress({
+          stage: processingStatus.stage === 'generating_notes' ? 'saving' : 'transcribing',
+          progress: processingStatus.progressPercent ?? 50,
+          step: 'transcribing',
+          subtitle: processingStatus.message,
+        })
+      } else if (existing?.status === 'failed' || processingStatus.stage === 'failed') {
+        setPhase('failed')
+        setError(existing?.errorMessage ?? 'Processing failed. Please try again.')
+        setTranscriptionProgress(null)
+      } else if (existing?.status === 'completed') {
         setPhase('completed')
         setTranscriptionProgress({ stage: 'saving', progress: 100, step: 'ready' })
-      } else if (existing?.status === 'failed') {
-        setPhase('failed')
-        setError(existing.errorMessage)
-        setTranscriptionProgress(null)
-      } else if (processingStatus.isProcessing || existing?.status === 'processing') {
+      } else if (existing?.status === 'processing') {
         setPhase('transcribing')
         setTranscriptionProgress({ stage: 'transcribing', progress: 50, step: 'transcribing' })
       } else {
@@ -231,7 +239,12 @@ export function useTranscription(
       if (status.isProcessing) {
         setIsBackgroundProcessing(true)
         setPhase('transcribing')
-        setTranscriptionProgress({ stage: 'transcribing', progress: 50, step: 'transcribing' })
+        setTranscriptionProgress({
+          stage: status.stage === 'generating_notes' ? 'saving' : 'transcribing',
+          progress: status.progressPercent ?? 50,
+          step: 'transcribing',
+          subtitle: status.message,
+        })
         return
       }
 

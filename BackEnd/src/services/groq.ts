@@ -19,11 +19,44 @@ export interface EnhancePromptOptions {
 }
 
 export function getGroqClient(): Groq {
-  const apiKey = process.env.GROQ_API_KEY
-  if (!apiKey) {
+  const raw = process.env.GROQ_API_KEY?.trim().replace(/^["']|["']$/g, '')
+  if (!raw) {
     throw new Error('GROQ_API_KEY environment variable is not configured.')
   }
-  return new Groq({ apiKey })
+  return new Groq({ apiKey: raw })
+}
+
+const GROQ_KEY_HELP =
+  'Create a new API key at https://console.groq.com/keys, set GROQ_API_KEY in BackEnd/.env (and on Render if deployed), then restart the backend.'
+
+export function formatGroqError(error: unknown): string {
+  const message = String(error instanceof Error ? error.message : error ?? '')
+
+  if (
+    /invalid api key|invalid_api_key|401/i.test(message) ||
+    message.includes('GROQ_API_KEY environment variable is not configured')
+  ) {
+    return `Groq API key is missing or invalid. ${GROQ_KEY_HELP}`
+  }
+
+  if (/too large|payload|413|file size/i.test(message)) {
+    return 'Audio file is too large for transcription. Try a shorter lecture or ensure ffmpeg is installed.'
+  }
+
+  if (/too long|context|token/i.test(message)) {
+    return 'Transcript input is too long for AI processing. Notes will use the raw transcript instead.'
+  }
+
+  if (/rate limit|429/i.test(message)) {
+    return 'Groq rate limit reached. Wait a minute and try again.'
+  }
+
+  // Avoid surfacing raw JSON error blobs in the UI.
+  if (message.startsWith('401') || message.startsWith('403') || message.includes('{"error"')) {
+    return `AI service request failed. ${GROQ_KEY_HELP}`
+  }
+
+  return message || 'AI processing failed. Please try again.'
 }
 
 export function enhanceSystemPrompt(
@@ -72,7 +105,8 @@ export async function groqChatCompletion(
     skipEnhancement: options?.skipEnhancement,
   })
   const groq = getGroqClient()
-  const completion = await groq.chat.completions.create({
+  try {
+    const completion = await groq.chat.completions.create({
     model: options?.model || 'llama-3.3-70b-versatile',
     temperature: options?.temperature !== undefined ? options.temperature : 0.4,
     messages: [
@@ -80,14 +114,17 @@ export async function groqChatCompletion(
       { role: 'user', content: userPrompt },
     ],
     ...(options?.jsonMode ? { response_format: { type: 'json_object' as const } } : {}),
-  })
+    })
 
-  const content = completion.choices?.[0]?.message?.content?.trim()
-  if (!content) {
-    throw new Error('Empty response from AI.')
+    const content = completion.choices?.[0]?.message?.content?.trim()
+    if (!content) {
+      throw new Error('Empty response from AI.')
+    }
+
+    return content
+  } catch (error) {
+    throw new Error(formatGroqError(error))
   }
-
-  return content
 }
 
 function buildWhisperPrompt(subjectName?: string): string {
@@ -109,17 +146,28 @@ export async function groqTranscribeBuffer(
   duration?: number
   segments?: Array<{ id: number; start: number; end: number; text: string }>
 }> {
+  const GROQ_MAX_BYTES = 20 * 1024 * 1024
+  if (buffer.length > GROQ_MAX_BYTES) {
+    throw new Error(
+      `Audio chunk is too large (${Math.round(buffer.length / (1024 * 1024))}MB). Splitting should happen before this step.`,
+    )
+  }
+
   const groq = getGroqClient()
   const file = new File([buffer], filename, { type: mimeType || 'application/octet-stream' })
 
-  const transcription = await groq.audio.transcriptions.create({
-    model: 'whisper-large-v3',
-    file,
-    response_format: 'verbose_json',
-    timestamp_granularities: ['segment'],
-    prompt: buildWhisperPrompt(subject),
-    ...(language ? { language } : {}),
-  })
+  try {
+    const transcription = await groq.audio.transcriptions.create({
+      model: 'whisper-large-v3',
+      file,
+      response_format: 'verbose_json',
+      timestamp_granularities: ['segment'],
+      prompt: buildWhisperPrompt(subject),
+      ...(language ? { language } : {}),
+    })
 
-  return transcription as any
+    return transcription as any
+  } catch (error) {
+    throw new Error(formatGroqError(error))
+  }
 }

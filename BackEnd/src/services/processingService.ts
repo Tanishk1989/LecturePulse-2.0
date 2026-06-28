@@ -5,7 +5,7 @@ import { transcribeFromUrl } from './transcribeService'
 import { resolveYouTubeTranscriptionUrl, downloadYouTubeAudio } from './youtubeService'
 import { isYouTubeUrl, parseYouTubeVideoId } from './youtubeUtils'
 import { readFileBufferFromUrl } from '../config/storage'
-import { groqChatCompletion } from './groq'
+import { groqChatCompletion, formatGroqError } from './groq'
 import { normalizeOutputLanguage } from './outputLanguage'
 import pdfParse from 'pdf-parse'
 
@@ -194,11 +194,13 @@ export async function triggerLectureProcessing(
         } else {
           let audioUrl = lecture.fileUrl
 
-          if (lecture.source === 'youtube' || isYouTubeUrl(lecture.fileUrl)) {
+          // Only download from YouTube when fileUrl is still a YouTube link.
+          // After the first attempt, fileUrl points to a local upload — retries must not re-parse it as YouTube.
+          if (isYouTubeUrl(lecture.fileUrl)) {
             audioUrl = await downloadYouTubeAudio(lecture.fileUrl, lectureId)
             await prisma.lecture.update({
               where: { id: lectureId },
-              data: { fileUrl: audioUrl }
+              data: { fileUrl: audioUrl, fileType: 'audio' },
             })
           }
 
@@ -217,35 +219,26 @@ export async function triggerLectureProcessing(
             end: seg.end,
             text: seg.text.trim()
           }))
-
-          if (segments.length > 0) {
-            try {
-              const { detectSpeakersInSegments } = await import('./speakerDetectionService')
-              segments = await detectSpeakersInSegments(segments, {
-                subject: lecture.subject || undefined,
-                useLlm: true,
-              })
-            } catch (speakerErr) {
-              console.error('Speaker detection failed, saving without labels:', speakerErr)
-            }
-          }
         }
 
         if (!extractedText) {
           throw new Error('No readable speech or text detected in this lecture.')
         }
 
+        // Skip LLM cleanup on long transcripts — it blocks completion for minutes.
+        const wordCount = extractedText.split(/\s+/).filter(Boolean).length
         let cleanedText = extractedText
-        try {
-          cleanedText = await cleanTranscript(extractedText)
-        } catch (cleanErr) {
-          console.error('Transcript cleanup failed, falling back to raw:', cleanErr)
-          cleanedText = extractedText
+        if (wordCount <= 2500) {
+          try {
+            cleanedText = await cleanTranscript(extractedText)
+          } catch (cleanErr) {
+            console.error('Transcript cleanup failed, falling back to raw:', cleanErr)
+            cleanedText = extractedText
+          }
         }
 
         sourceText = cleanedText
 
-        // Update transcript to completed
         await prisma.transcript.update({
           where: { id: transcript.id },
           data: {
@@ -260,14 +253,40 @@ export async function triggerLectureProcessing(
           }
         })
 
-        try {
-          const { indexLectureRag } = await import('./ragService')
-          await indexLectureRag(lectureId, userId, cleanedText)
-        } catch (ragErr) {
-          console.error('RAG indexing failed:', ragErr)
+        // Lecture is usable as soon as the transcript exists — notes/title continue in background.
+        await prisma.lecture.update({
+          where: { id: lectureId },
+          data: { status: 'completed' }
+        })
+
+        if (segments.length > 0) {
+          void (async () => {
+            try {
+              const { detectSpeakersInSegments } = await import('./speakerDetectionService')
+              const labeled = await detectSpeakersInSegments(segments, {
+                subject: lecture.subject || undefined,
+                useLlm: true,
+              })
+              await prisma.transcript.update({
+                where: { id: transcript.id },
+                data: { segments: labeled as object, updatedAt: new Date() },
+              })
+            } catch (speakerErr) {
+              console.error('Speaker detection failed, saving without labels:', speakerErr)
+            }
+          })()
         }
+
+        void (async () => {
+          try {
+            const { indexLectureRag } = await import('./ragService')
+            await indexLectureRag(lectureId, userId, cleanedText)
+          } catch (ragErr) {
+            console.error('RAG indexing failed:', ragErr)
+          }
+        })()
       } catch (err: any) {
-        const msg = err.message || 'Processing failed.'
+        const msg = formatGroqError(err)
         await prisma.transcript.update({
           where: { id: transcript.id },
           data: {
@@ -284,38 +303,44 @@ export async function triggerLectureProcessing(
       }
     }
 
-    // Generate smart title if needed
-    if (sourceText) {
-      try {
-        const currentLecture = await prisma.lecture.findUnique({
-          where: { id: lectureId },
-          select: { title: true, fileType: true, source: true }
-        })
+    const titlePromise =
+      sourceText
+        ? (async () => {
+            try {
+              const currentLecture = await prisma.lecture.findUnique({
+                where: { id: lectureId },
+                select: { title: true, fileType: true, source: true },
+              })
 
-        if (
-          currentLecture &&
-          (isDefaultOrTemporaryTitle(currentLecture.title) || !currentLecture.title.includes('—'))
-        ) {
-          let smartTitle = ''
-          try {
-            smartTitle = await generateSmartTitle(sourceText)
-          } catch (titleErr) {
-            console.error('AI title generation failed, falling back:', titleErr)
-            smartTitle = getCleanedFallbackTitle(currentLecture.title)
-          }
+              if (
+                currentLecture &&
+                (isDefaultOrTemporaryTitle(currentLecture.title) ||
+                  !currentLecture.title.includes('—'))
+              ) {
+                let smartTitle = ''
+                try {
+                  smartTitle = await generateSmartTitle(sourceText)
+                } catch (titleErr) {
+                  console.error('AI title generation failed, falling back:', titleErr)
+                  smartTitle = getCleanedFallbackTitle(currentLecture.title)
+                }
 
-          if (smartTitle) {
-            const emoji = currentLecture.fileType === 'pdf' || currentLecture.source === 'pdf' ? '📄' : '🎙'
-            await prisma.lecture.update({
-              where: { id: lectureId },
-              data: { title: `${emoji} ${smartTitle}` }
-            })
-          }
-        }
-      } catch (titleGenErr) {
-        console.error('Failed in title generation lifecycle:', titleGenErr)
-      }
-    }
+                if (smartTitle) {
+                  const emoji =
+                    currentLecture.fileType === 'pdf' || currentLecture.source === 'pdf'
+                      ? '📄'
+                      : '🎙'
+                  await prisma.lecture.update({
+                    where: { id: lectureId },
+                    data: { title: `${emoji} ${smartTitle}` },
+                  })
+                }
+              }
+            } catch (titleGenErr) {
+              console.error('Failed in title generation lifecycle:', titleGenErr)
+            }
+          })()
+        : Promise.resolve()
 
     // Process notes if requested
     if (generateNotes && sourceText) {
@@ -369,7 +394,7 @@ export async function triggerLectureProcessing(
             console.error(`Knowledge graph extraction failed for lecture ${lectureId}:`, kgErr)
           })
         } catch (err: any) {
-          const msg = err.message || 'Notes generation failed.'
+          const msg = formatGroqError(err)
           await prisma.lectureNote.update({
             where: { id: notes.id },
             data: {
@@ -381,6 +406,8 @@ export async function triggerLectureProcessing(
         }
       }
     }
+
+    await titlePromise
 
     if (sourceText) {
       const conceptCount = await prisma.kgConcept.count({ where: { lectureId, userId } })
@@ -399,10 +426,9 @@ export async function triggerLectureProcessing(
       }
     }
 
-    // Set lecture status to completed
     await prisma.lecture.update({
       where: { id: lectureId },
-      data: { status: 'completed' }
+      data: { status: 'completed' },
     })
   } catch (error) {
     console.error(`Error processing lecture ${lectureId}:`, error)
