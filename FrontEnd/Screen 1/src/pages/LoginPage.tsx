@@ -10,6 +10,8 @@ import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/ui/ToastProvider'
 import { getAuthErrorMessage } from '@/lib/authErrors'
 
+const emailAuthEnabled = import.meta.env.VITE_EMAIL_AUTH_ENABLED === 'true'
+
 export function LoginPage() {
   const prefersReducedMotion = useReducedMotion()
   const navigate = useNavigate()
@@ -83,15 +85,16 @@ export function LoginPage() {
                 onClick={handleGoogleSignIn}
                 loading={isGoogleLoading}
               />
-              <SocialAuthButton provider="github" disabled />
             </div>
           </AuthStaggerItem>
 
-          <AuthStaggerItem>
-            <AuthDivider />
-          </AuthStaggerItem>
+          {emailAuthEnabled && (
+            <AuthStaggerItem>
+              <AuthDivider />
+            </AuthStaggerItem>
+          )}
 
-          <AuthStaggerItem>
+          {emailAuthEnabled && <AuthStaggerItem>
             <form className="space-y-4" onSubmit={(e) => void handleEmailSignIn(e)}>
               <FloatingInput
                 label="Email"
@@ -131,9 +134,9 @@ export function LoginPage() {
                 {isEmailLoading ? 'Signing in…' : 'Log In'}
               </motion.button>
             </form>
-          </AuthStaggerItem>
+          </AuthStaggerItem>}
 
-          <AuthStaggerItem>
+          {emailAuthEnabled ? <AuthStaggerItem>
             <p className="text-center text-sm text-muted">
               Don&apos;t have an account?{' '}
               <Link
@@ -143,7 +146,11 @@ export function LoginPage() {
                 Sign Up
               </Link>
             </p>
-          </AuthStaggerItem>
+          </AuthStaggerItem> : <AuthStaggerItem>
+            <p className="text-center text-sm text-muted">
+              Continue with Google to access LecturePulse.
+            </p>
+          </AuthStaggerItem>}
         </AuthStagger>
       </AuthGlassCard>
     </AuthLayout>
