@@ -10,7 +10,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: PUBLIC_BASE_URL
-        value: https://lecturepulse.onrender.com
+        value: https://lecturepulse-api-tanishk.onrender.com
       - key: DATABASE_URL
         sync: false
       - key: GROQ_API_KEY

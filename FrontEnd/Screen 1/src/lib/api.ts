@@ -1,13 +1,15 @@
 import { auth } from '@/lib/firebase'
 import { sanitizeApiErrorMessage } from '@/lib/apiErrors'
 
-const configuredBackendUrl = import.meta.env.VITE_BACKEND_URL?.trim()
+const configuredBackendUrl =
+  import.meta.env.VITE_BACKEND_URL_OVERRIDE?.trim() ||
+  import.meta.env.VITE_BACKEND_URL?.trim()
 
 export const BACKEND_URL = (
   configuredBackendUrl ||
   (import.meta.env.DEV
     ? 'http://localhost:5000/api'
-    : 'https://lecturepulse.onrender.com/api')
+    : 'https://lecturepulse-api-tanishk.onrender.com/api')
 ).replace(/\/+$/, '')
 export const BACKEND_ORIGIN = BACKEND_URL.replace(/\/api\/?$/, '')
 
