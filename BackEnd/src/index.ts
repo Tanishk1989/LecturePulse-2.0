@@ -101,7 +101,7 @@ async function connectDatabase(maxAttempts = 5): Promise<void> {
       }
 
       console.error(
-        'Database connection: FAILED after all retries. Check DATABASE_URL on Render — use port 5432 on db.PROJECT.supabase.co (direct), not port 6543 on the db host.',
+        'Database connection: FAILED after all retries. Check DATABASE_URL on Render; use the Supabase shared pooler if the direct database host is unreachable.',
       )
       throw error
     }
