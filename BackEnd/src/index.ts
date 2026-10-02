@@ -11,14 +11,14 @@ import notesRouter from './routes/notes'
 import flashcardRouter from './routes/flashcards'
 import aiRouter from './routes/ai'
 import knowledgeGraphRouter from './routes/knowledgeGraph'
-import uploadRouter from './routes/uploads'
+import uploadRouter, { mediaRouter } from './routes/uploads'
 import profileRouter from './routes/profiles'
 import streakRouter from './routes/streaks'
 import examCountdownRouter from './routes/examCountdown'
 import searchRouter from './routes/search'
 import sharesRouter from './routes/shares'
 import analyticsRouter from './routes/analytics'
-import { ensureUploadDirs, UPLOADS_ROOT } from './config/storage'
+import { ensureUploadDirs, initializeStorage, storageMode, UPLOADS_ROOT } from './config/storage'
 import { prisma } from './config/db'
 import { resolveApiError } from './utils/apiError'
 
@@ -30,7 +30,7 @@ const PORT = process.env.PORT || 5000
 app.use(cors())
 app.use(express.json())
 
-app.use('/uploads', express.static(UPLOADS_ROOT))
+app.use('/uploads', mediaRouter)
 
 app.use('/api/lectures', lectureRouter)
 app.use('/api/transcripts', transcriptRouter)
@@ -58,7 +58,7 @@ app.get('/', (_req, res) => {
 })
 
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'healthy', timestamp: new Date().toISOString() })
+  res.json({ status: 'healthy', storage: storageMode(), revision: process.env.RENDER_GIT_COMMIT?.slice(0, 7), timestamp: new Date().toISOString() })
 })
 
 app.get('/api/health/db', async (_req, res) => {
@@ -110,6 +110,7 @@ async function connectDatabase(maxAttempts = 5): Promise<void> {
 
 async function startServer() {
   try {
+    await initializeStorage()
     await connectDatabase()
   } catch {
     process.exit(1)

@@ -2,6 +2,7 @@ import {
   getPublicStorageUrl,
   getStorageBucketForMediaKind,
   uploadFileWithProgress,
+  MAX_UPLOAD_BYTES,
 } from '@/lib/storageUpload'
 import type {
   CreateLectureInput,
@@ -48,6 +49,7 @@ export async function uploadLecture(
   if (mediaKind === 'audio' || mediaKind === 'video') {
     try {
       const audioBlob = await extractAudioToWav(input.file)
+      if (audioBlob.size > MAX_UPLOAD_BYTES) throw new Error('Extracted audio exceeds upload limit; use compressed source.')
       fileToUpload = new File([audioBlob], 'audio.wav', { type: 'audio/wav' })
       mediaKind = 'audio'
       mimeType = 'audio/wav'
@@ -138,6 +140,7 @@ export async function createLecture(input: CreateLectureInput): Promise<LectureR
 }
 
 export async function getUserLectures(userId: string): Promise<LectureRecording[]> {
+  void userId // Ownership is enforced by the authenticated backend.
   const data = await apiFetch<LectureRow[]>('/lectures')
   return data.map(mapRowToLecture)
 }

@@ -8,6 +8,7 @@ import { resolveYouTubeTranscriptionUrl } from '../services/youtubeService'
 import { extractPdfTextFromUrl } from '../services/processingService'
 import { generateStructuredNotes } from '../services/notesGenerator'
 import { sendRouteError } from '../utils/apiError'
+import { canonicalOwnedFileUrl } from '../config/storage'
 
 const router = Router()
 
@@ -40,7 +41,7 @@ router.post('/transcribe', requireAuth, async (req: AuthenticatedRequest, res: R
   }
 
   try {
-    const result = await transcribeFromUrl(audioUrl, language)
+    const result = await transcribeFromUrl(canonicalOwnedFileUrl(audioUrl, req.user!.uid), language)
     res.json(result)
   } catch (error) {
     return sendRouteError(res, error, 'Processing failed.')
@@ -92,7 +93,7 @@ router.post('/extract-pdf', requireAuth, async (req: AuthenticatedRequest, res: 
   }
 
   try {
-    const result = await extractPdfTextFromUrl(pdfUrl)
+    const result = await extractPdfTextFromUrl(canonicalOwnedFileUrl(pdfUrl, req.user!.uid))
     res.json(result)
   } catch (error) {
     return sendRouteError(res, error, 'PDF extraction failed.')

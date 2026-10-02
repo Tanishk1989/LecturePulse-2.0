@@ -1,14 +1,17 @@
-import { BACKEND_ORIGIN, BACKEND_URL, getAuthToken } from '@/lib/api'
+import { BACKEND_URL, getAuthToken, apiFetch } from '@/lib/api'
 
 export const LECTURES_BUCKET = 'lectures'
 export const DOCUMENTS_BUCKET = 'documents'
+export const MAX_UPLOAD_BYTES = 48 * 1024 * 1024
 
 export function getStorageBucketForMediaKind(mediaKind: 'audio' | 'video' | 'pdf'): string {
   return mediaKind === 'pdf' ? DOCUMENTS_BUCKET : LECTURES_BUCKET
 }
 
 export async function getPublicStorageUrl(bucket: string, relativePath: string): Promise<string> {
-  return `${BACKEND_ORIGIN}/uploads/${bucket}/${relativePath}`
+  const query = new URLSearchParams({ category: bucket, relativePath })
+  const result = await apiFetch<{ fileUrl: string }>(`/uploads/url?${query}`)
+  return result.fileUrl
 }
 
 export function extractStoragePathFromUrl(fileUrl: string): {
@@ -27,7 +30,7 @@ export function extractStoragePathFromUrl(fileUrl: string): {
 
     return {
       bucket: remainder.slice(0, firstSlash),
-      path: remainder.slice(firstSlash + 1),
+      path: remainder.slice(firstSlash + 1).split('/').map(decodeURIComponent).join('/'),
     }
   } catch {
     return null
@@ -41,6 +44,10 @@ export async function uploadFileWithProgress(
   _contentType: string | undefined,
   onProgress?: (percent: number) => void,
 ): Promise<void> {
+  if (file.size > MAX_UPLOAD_BYTES) {
+    throw new Error('File exceeds the 48 MB upload limit.')
+  }
+
   const token = await getAuthToken()
   if (!token) {
     throw new Error('Sign in to upload files.')

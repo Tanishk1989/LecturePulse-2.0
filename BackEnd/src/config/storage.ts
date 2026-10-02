@@ -1,12 +1,74 @@
 import * as fs from 'fs'
 import * as path from 'path'
+import { createHmac, randomBytes, timingSafeEqual } from 'crypto'
+import { createClient } from '@supabase/supabase-js'
+
+export const MAX_UPLOAD_BYTES = 48 * 1024 * 1024
+const STORAGE_BUCKET = 'lecturepulse-private'
+const signingKey = process.env.SUPABASE_SERVICE_ROLE_KEY || randomBytes(32).toString('hex')
+const supabase = process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    })
+  : null
+
+export async function initializeStorage(): Promise<void> {
+  ensureUploadDirs()
+  if (!supabase) {
+    if (process.env.NODE_ENV === 'production') throw new Error('Durable storage credentials are missing.')
+    return
+  }
+  const { data, error } = await supabase.storage.getBucket(STORAGE_BUCKET)
+  if (data) {
+    if (data.public) throw new Error('Lecture storage bucket must be private.')
+    return
+  }
+  if (error && !/not found/i.test(error.message)) throw new Error('Could not inspect durable storage.')
+  const created = await supabase.storage.createBucket(STORAGE_BUCKET, {
+    public: false, fileSizeLimit: MAX_UPLOAD_BYTES,
+  })
+  if (created.error) throw new Error('Could not create private lecture storage.')
+}
+
+export function storageMode(): string { return supabase ? 'supabase-private' : 'local-development' }
 
 export const UPLOADS_ROOT = process.env.UPLOADS_DIR || path.join(process.cwd(), 'uploads')
 export const LECTURES_CATEGORY = 'lectures'
 export const DOCUMENTS_CATEGORY = 'documents'
+export const AVATARS_CATEGORY = 'avatars'
+
+function assertCategory(category: string): void {
+  if (![LECTURES_CATEGORY, DOCUMENTS_CATEGORY, AVATARS_CATEGORY].includes(category)) {
+    throw new Error('Invalid upload category.')
+  }
+}
+
+export function normalizeRelativePath(relativePath: string): string {
+  if (
+    !relativePath ||
+    relativePath.includes('\\') ||
+    relativePath.includes('\0') ||
+    path.posix.isAbsolute(relativePath) ||
+    path.win32.isAbsolute(relativePath)
+  ) {
+    throw new Error('Invalid file path.')
+  }
+
+  const segments = relativePath.split('/')
+  if (segments.some((segment) => !segment || segment === '.' || segment === '..' || /[\u0000-\u001f<>:"|?*]/.test(segment))) {
+    throw new Error('Invalid file path.')
+  }
+
+  return segments.join('/')
+}
+
+function isWithinDirectory(root: string, target: string): boolean {
+  const relative = path.relative(root, target)
+  return relative !== '' && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative)
+}
 
 export function ensureUploadDirs(): void {
-  for (const category of [LECTURES_CATEGORY, DOCUMENTS_CATEGORY]) {
+  for (const category of [LECTURES_CATEGORY, DOCUMENTS_CATEGORY, AVATARS_CATEGORY]) {
     fs.mkdirSync(path.join(UPLOADS_ROOT, category), { recursive: true })
   }
 }
@@ -18,16 +80,19 @@ export function getPublicBaseUrl(): string {
 }
 
 export function buildFileUrl(category: string, relativePath: string): string {
-  const normalized = relativePath.replace(/\\/g, '/').replace(/^\/+/, '')
-  return `${getPublicBaseUrl()}/uploads/${category}/${normalized}`
+  assertCategory(category)
+  const normalized = normalizeRelativePath(relativePath)
+  const encoded = normalized.split('/').map(encodeURIComponent).join('/')
+  return `${getPublicBaseUrl()}/uploads/${category}/${encoded}`
 }
 
 export function getAbsolutePath(category: string, relativePath: string): string {
-  const normalized = relativePath.replace(/\\/g, '/').replace(/^\/+/, '')
-  const absolute = path.resolve(UPLOADS_ROOT, category, normalized)
-  const uploadsRootResolved = path.resolve(UPLOADS_ROOT)
+  assertCategory(category)
+  const normalized = normalizeRelativePath(relativePath)
+  const categoryRoot = path.resolve(UPLOADS_ROOT, category)
+  const absolute = path.resolve(categoryRoot, ...normalized.split('/'))
 
-  if (!absolute.startsWith(uploadsRootResolved)) {
+  if (!isWithinDirectory(categoryRoot, absolute)) {
     throw new Error('Invalid file path.')
   }
 
@@ -37,35 +102,101 @@ export function getAbsolutePath(category: string, relativePath: string): string 
 export function resolveLocalPathFromUrl(fileUrl: string): string | null {
   try {
     const url = new URL(fileUrl)
-    const marker = '/uploads/'
-    const markerIndex = url.pathname.indexOf(marker)
-    if (markerIndex === -1) return null
+    if (url.origin !== new URL(getPublicBaseUrl()).origin || !url.pathname.startsWith('/uploads/')) return null
 
-    const relative = url.pathname.slice(markerIndex + marker.length)
-    const absolute = path.resolve(UPLOADS_ROOT, ...relative.split('/'))
-    const uploadsRootResolved = path.resolve(UPLOADS_ROOT)
-
-    if (!absolute.startsWith(uploadsRootResolved)) {
-      return null
-    }
-
-    return absolute
+    const [category, ...segments] = url.pathname.slice('/uploads/'.length).split('/')
+    const relativePath = segments.map(decodeURIComponent).join('/')
+    return getAbsolutePath(category, relativePath)
   } catch {
     return null
   }
 }
 
+export function parseStoredFileUrl(fileUrl: string): { category: string; relativePath: string } | null {
+  if (!resolveLocalPathFromUrl(fileUrl)) return null
+  const url = new URL(fileUrl)
+  const [category, ...segments] = url.pathname.slice('/uploads/'.length).split('/')
+  return { category, relativePath: segments.map(decodeURIComponent).join('/') }
+}
+
+export function canonicalOwnedFileUrl(fileUrl: string, userId: string): string {
+  const stored = parseStoredFileUrl(fileUrl)
+  if (!stored) throw new Error('Invalid uploaded file URL.')
+  assertUserOwnsRelativePath(userId, stored.relativePath)
+  return buildFileUrl(stored.category, stored.relativePath)
+}
+
+function mediaSignature(category: string, relativePath: string, expires: string): string {
+  return createHmac('sha256', signingKey).update(`${category}/${relativePath}\n${expires}`).digest('hex')
+}
+
+export function getAccessibleFileUrl(fileUrl: string, userId?: string): string {
+  const stored = parseStoredFileUrl(fileUrl)
+  if (!stored) return fileUrl
+  if (userId) {
+    try { assertUserOwnsRelativePath(userId, stored.relativePath) } catch { return '' }
+  }
+  const base = buildFileUrl(stored.category, stored.relativePath)
+  if (stored.category === AVATARS_CATEGORY) return base
+  const expires = String(Math.floor(Date.now() / 1000) + 6 * 60 * 60)
+  return `${base}?expires=${expires}&signature=${mediaSignature(stored.category, stored.relativePath, expires)}`
+}
+
+export function verifyMediaSignature(category: string, relativePath: string, expires: string, signature: string): boolean {
+  if (!/^\d+$/.test(expires) || Number(expires) <= Date.now() / 1000 || !/^[a-f0-9]{64}$/.test(signature)) return false
+  const expected = mediaSignature(category, relativePath, expires)
+  return timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(signature, 'hex'))
+}
+
+export async function storeFile(category: string, relativePath: string, sourcePath: string, contentType: string): Promise<void> {
+  const target = getAbsolutePath(category, relativePath)
+  if (fs.statSync(sourcePath).size > MAX_UPLOAD_BYTES) throw new Error('File exceeds the 48 MB upload limit.')
+  if (supabase) {
+    const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(
+      `${category}/${normalizeRelativePath(relativePath)}`, fs.createReadStream(sourcePath),
+      { contentType, upsert: true, duplex: 'half' },
+    )
+    if (error) throw new Error('Durable upload failed. Please try again.')
+    return
+  }
+  fs.mkdirSync(path.dirname(target), { recursive: true })
+  if (path.resolve(sourcePath) === target) return
+  fs.copyFileSync(sourcePath, target)
+}
+
+export async function getStorageDownloadUrl(category: string, relativePath: string): Promise<string | null> {
+  getAbsolutePath(category, relativePath)
+  if (!supabase) return null
+  const { data, error } = await supabase.storage.from(STORAGE_BUCKET).createSignedUrl(`${category}/${relativePath}`, 300)
+  if (error || !data) throw new Error('File is unavailable. Please upload it again.')
+  return data.signedUrl
+}
+
 export function assertUserOwnsRelativePath(userId: string, relativePath: string): void {
-  const normalized = relativePath.replace(/\\/g, '/').replace(/^\/+/, '')
-  if (!normalized.startsWith(`${userId}/`)) {
+  const normalized = normalizeRelativePath(relativePath)
+  if (normalized.split('/')[0] !== userId || normalized.split('/').length < 2) {
     throw new Error('Access denied.')
   }
 }
 
-export function deleteFileByUrl(fileUrl: string): boolean {
+export async function deleteFileByUrl(fileUrl: string, userId: string): Promise<boolean> {
+  try {
+    const url = new URL(fileUrl)
+    if (!url.pathname.startsWith('/uploads/')) return false
+    const relativePath = url.pathname.split('/').slice(3).map(decodeURIComponent).join('/')
+    assertUserOwnsRelativePath(userId, relativePath)
+  } catch {
+    return false
+  }
+
+  const stored = parseStoredFileUrl(fileUrl)
+  if (supabase && stored) {
+    const { error } = await supabase.storage.from(STORAGE_BUCKET).remove([`${stored.category}/${stored.relativePath}`])
+    if (error) throw new Error('Could not delete stored file.')
+  }
   const localPath = resolveLocalPathFromUrl(fileUrl)
   if (!localPath || !fs.existsSync(localPath)) {
-    return false
+    return Boolean(supabase && stored)
   }
 
   fs.unlinkSync(localPath)
@@ -73,12 +204,23 @@ export function deleteFileByUrl(fileUrl: string): boolean {
 }
 
 export async function readFileBufferFromUrl(fileUrl: string): Promise<Buffer> {
+  const stored = parseStoredFileUrl(fileUrl)
+  if (stored && supabase) {
+    const { data, error } = await supabase.storage.from(STORAGE_BUCKET).download(`${stored.category}/${stored.relativePath}`)
+    if (error || !data) throw new Error('File is unavailable. Please upload it again.')
+    return Buffer.from(await data.arrayBuffer())
+  }
   const localPath = resolveLocalPathFromUrl(fileUrl)
   if (localPath && fs.existsSync(localPath)) {
     return fs.readFileSync(localPath)
   }
 
-  const response = await fetch(fileUrl)
+  // External audio URLs are produced only by the YouTube resolver.
+  const remote = new URL(fileUrl)
+  if (remote.protocol !== 'https:' || !remote.hostname.endsWith('.googlevideo.com')) {
+    throw new Error('File is unavailable. Please upload it again.')
+  }
+  const response = await fetch(fileUrl, { redirect: 'error', signal: AbortSignal.timeout(120000) })
   if (!response.ok) {
     throw new Error(`Failed to fetch file (${response.status}).`)
   }

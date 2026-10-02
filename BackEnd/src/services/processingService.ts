@@ -197,7 +197,7 @@ export async function triggerLectureProcessing(
           // Only download from YouTube when fileUrl is still a YouTube link.
           // After the first attempt, fileUrl points to a local upload — retries must not re-parse it as YouTube.
           if (isYouTubeUrl(lecture.fileUrl)) {
-            audioUrl = await downloadYouTubeAudio(lecture.fileUrl, lectureId)
+            audioUrl = await downloadYouTubeAudio(lecture.fileUrl, lectureId, userId)
             await prisma.lecture.update({
               where: { id: lectureId },
               data: { fileUrl: audioUrl, fileType: 'audio' },

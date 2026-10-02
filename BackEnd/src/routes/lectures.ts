@@ -1,7 +1,8 @@
 import { Router, Response } from 'express'
 import { prisma } from '../config/db'
 import { AuthenticatedRequest, requireAuth } from '../middleware/auth'
-import { deleteFileByUrl } from '../config/storage'
+import { deleteFileByUrl, getAccessibleFileUrl, canonicalOwnedFileUrl } from '../config/storage'
+import { isYouTubeUrl } from '../services/youtubeUtils'
 import { triggerLectureProcessing } from '../services/processingService'
 import { sendRouteError } from '../utils/apiError'
 import { deriveProcessingStatus, isProcessingStale } from '../utils/processingStatus'
@@ -18,7 +19,7 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =>
       where: { userId },
       orderBy: { createdAt: 'desc' },
     })
-    res.json(lectures)
+    res.json(lectures.map(lecture => ({ ...lecture, fileUrl: getAccessibleFileUrl(lecture.fileUrl, userId) })))
   } catch (error) {
     return sendRouteError(res, error, 'Failed to retrieve lectures.')
   }
@@ -97,7 +98,7 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
       return res.status(404).json({ error: 'Lecture not found.' })
     }
 
-    res.json(lecture)
+    res.json({ ...lecture, fileUrl: getAccessibleFileUrl(lecture.fileUrl, userId) })
   } catch (error) {
     return sendRouteError(res, error, 'Failed to retrieve lecture.')
   }
@@ -123,20 +124,22 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
   }
 
   try {
+    const storedUrl = source === 'youtube' && typeof fileUrl === 'string' && isYouTubeUrl(fileUrl)
+      ? fileUrl : canonicalOwnedFileUrl(fileUrl, userId)
     const lecture = await prisma.lecture.create({
       data: {
         id: id || undefined,
         userId,
         title: title.trim(),
         fileType,
-        fileUrl,
+        fileUrl: storedUrl,
         duration: duration ? parseInt(duration, 10) : null,
         status: 'uploaded',
         source: source || 'upload',
         subject: subject || null,
       },
     })
-    res.status(201).json(lecture)
+    res.status(201).json({ ...lecture, fileUrl: getAccessibleFileUrl(lecture.fileUrl, userId) })
   } catch (error) {
     return sendRouteError(res, error, 'Failed to create lecture.')
   }
@@ -183,7 +186,7 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
       },
     })
 
-    res.json(updated)
+    res.json({ ...updated, fileUrl: getAccessibleFileUrl(updated.fileUrl, userId) })
   } catch (error) {
     return sendRouteError(res, error, 'Failed to update lecture.')
   }
@@ -206,7 +209,7 @@ router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respon
 
     if (lecture.fileUrl) {
       try {
-        deleteFileByUrl(lecture.fileUrl)
+        await deleteFileByUrl(lecture.fileUrl, userId)
       } catch (err) {
         console.warn('Local file deletion failed or file did not exist:', err)
       }

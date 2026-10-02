@@ -9,7 +9,7 @@ import {
 import { auth } from '@/lib/firebase'
 import { getPublicStorageUrl, uploadFileWithProgress } from '@/lib/storageUpload'
 
-const AVATARS_BUCKET = 'documents'
+const AVATARS_BUCKET = 'avatars'
 import { getAuthErrorMessage } from '@/lib/authErrors'
 
 export function hasPasswordProvider(user: User): boolean {
@@ -27,6 +27,7 @@ export async function updateDisplayName(displayName: string): Promise<void> {
 }
 
 export async function updateUserBio(_bio: string): Promise<void> {
+  void _bio
   // Bio is stored in local preferences — no Firebase field
 }
 
@@ -95,6 +96,7 @@ export async function deleteFirebaseAccount(currentPassword?: string): Promise<v
     throw new Error(
       getAuthErrorMessage(error) ||
         'Could not delete your auth account. Sign in again and retry, or contact support.',
+      { cause: error },
     )
   }
 }

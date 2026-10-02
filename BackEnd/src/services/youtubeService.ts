@@ -1,10 +1,10 @@
 import { execFile, execSync } from 'child_process'
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs'
 import path from 'path'
 import { promisify } from 'util'
 import { Innertube } from 'youtubei.js'
 import { parseYouTubeVideoId } from './youtubeUtils'
-import { LECTURES_CATEGORY, getAbsolutePath, buildFileUrl } from '../config/storage'
+import { LECTURES_CATEGORY, getAbsolutePath, buildFileUrl, storeFile } from '../config/storage'
 import { convertBufferToMonoWav, isFfmpegAvailable } from './audioConvertService'
 
 const execFileAsync = promisify(execFile)
@@ -146,12 +146,13 @@ export async function resolveYouTubeTranscriptionUrl(youtubeUrl: string): Promis
   return resolveYouTubeAudioUrl(videoId)
 }
 
-export async function downloadYouTubeAudio(youtubeUrl: string, lectureId: string): Promise<string> {
+export async function downloadYouTubeAudio(youtubeUrl: string, lectureId: string, userId: string): Promise<string> {
   // Reuse already-downloaded audio (supports legacy .webm and new .wav paths).
   for (const ext of ['wav', 'webm', 'm4a', 'mp3']) {
-    const relativePath = `${lectureId}.${ext}`
+    const relativePath = `${userId}/${lectureId}.${ext}`
     const absolutePath = getAbsolutePath(LECTURES_CATEGORY, relativePath)
     if (existsSync(absolutePath)) {
+      await storeFile(LECTURES_CATEGORY, relativePath, absolutePath, ext === 'wav' ? 'audio/wav' : 'audio/webm')
       return buildFileUrl(LECTURES_CATEGORY, relativePath)
     }
   }
@@ -162,8 +163,10 @@ export async function downloadYouTubeAudio(youtubeUrl: string, lectureId: string
   }
 
   const useWavOutput = isFfmpegAvailable()
-  const relativePath = useWavOutput ? `${lectureId}.wav` : `${lectureId}.webm`
+  const relativePath = useWavOutput ? `${userId}/${lectureId}.wav` : `${userId}/${lectureId}.webm`
   const absolutePath = getAbsolutePath(LECTURES_CATEGORY, relativePath)
+
+  mkdirSync(path.dirname(absolutePath), { recursive: true })
 
   const watchUrl = `https://www.youtube.com/watch?v=${videoId}`
   let downloaded = false
@@ -248,5 +251,6 @@ export async function downloadYouTubeAudio(youtubeUrl: string, lectureId: string
     }
   }
 
+  await storeFile(LECTURES_CATEGORY, relativePath, absolutePath, useWavOutput ? 'audio/wav' : 'audio/webm')
   return buildFileUrl(LECTURES_CATEGORY, relativePath)
 }
