@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 
 export const MAX_UPLOAD_BYTES = 48 * 1024 * 1024
 const STORAGE_BUCKET = 'lecturepulse-private'
+const MEDIA_URL_TTL_SECONDS = 6 * 60 * 60
 const signingKey = process.env.SUPABASE_SERVICE_ROLE_KEY || randomBytes(32).toString('hex')
 const supabase = process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
   ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
@@ -138,7 +139,7 @@ export function getAccessibleFileUrl(fileUrl: string, userId?: string): string {
   }
   const base = buildFileUrl(stored.category, stored.relativePath)
   if (stored.category === AVATARS_CATEGORY) return base
-  const expires = String(Math.floor(Date.now() / 1000) + 6 * 60 * 60)
+  const expires = String(Math.floor(Date.now() / 1000) + MEDIA_URL_TTL_SECONDS)
   return `${base}?expires=${expires}&signature=${mediaSignature(stored.category, stored.relativePath, expires)}`
 }
 
@@ -167,7 +168,7 @@ export async function storeFile(category: string, relativePath: string, sourcePa
 export async function getStorageDownloadUrl(category: string, relativePath: string): Promise<string | null> {
   getAbsolutePath(category, relativePath)
   if (!supabase) return null
-  const { data, error } = await supabase.storage.from(STORAGE_BUCKET).createSignedUrl(`${category}/${relativePath}`, 300)
+  const { data, error } = await supabase.storage.from(STORAGE_BUCKET).createSignedUrl(`${category}/${relativePath}`, MEDIA_URL_TTL_SECONDS)
   if (error || !data) throw new Error('File is unavailable. Please upload it again.')
   return data.signedUrl
 }
