@@ -3,7 +3,7 @@ import { prisma } from '../config/db'
 import { AuthenticatedRequest, requireAuth } from '../middleware/auth'
 import { deleteFileByUrl, getAccessibleFileUrl, canonicalOwnedFileUrl } from '../config/storage'
 import { isYouTubeUrl } from '../services/youtubeUtils'
-import { triggerLectureProcessing } from '../services/processingService'
+import { enqueueProcessingJob, getProcessingJob, runProcessingQueueOnce } from '../services/processingQueue'
 import { aiRequestLimit } from '../middleware/aiRequestLimit'
 import { sendRouteError } from '../utils/apiError'
 import { deriveProcessingStatus, isProcessingStale } from '../utils/processingStatus'
@@ -56,6 +56,15 @@ router.get('/:id/processing-status', requireAuth, async (req: AuthenticatedReque
     let lectureStatus = lecture.status
     const transcriptStatus = transcript?.status ?? null
     const notesStatus = notes?.status ?? null
+
+    const job = await getProcessingJob(id, userId)
+    if (job?.state === 'queued' || job?.state === 'running') {
+      return res.json({ ...deriveProcessingStatus('processing', transcriptStatus === 'failed' ? null : transcriptStatus, notesStatus),
+        isProcessing: true, message: job.state === 'queued' ? 'Lecture queued for processing or automatic recovery…' : 'Processing your lecture…' })
+    }
+    if (job?.state === 'failed') {
+      return res.json({ ...deriveProcessingStatus('failed', transcriptStatus, notesStatus), message: 'Processing failed after bounded retries. Please try again.' })
+    }
 
     let derived = deriveProcessingStatus(lectureStatus, transcriptStatus, notesStatus)
 
@@ -245,26 +254,14 @@ router.post('/:id/process', requireAuth, aiRequestLimit, async (req: Authenticat
       return res.status(404).json({ error: 'Lecture not found.' })
     }
 
-    if (lecture.status === 'processing') {
-      return res.status(202).json({ status: 'processing', id })
-    }
-
-    // Update status to processing
-    await prisma.lecture.update({
-      where: { id },
-      data: { status: 'processing' },
-    })
-
-    // Run processing job in background asynchronously
-    void triggerLectureProcessing(id, userId, {
+    await enqueueProcessingJob(id, userId, {
       generateNotes: generateNotes !== false,
       forceRetranscribe: forceRetranscribe === true,
       transcriptionLanguage:
         typeof transcriptionLanguage === 'string' ? transcriptionLanguage : undefined,
       outputLanguage: typeof outputLanguage === 'string' ? outputLanguage : undefined,
-    }).catch((err) => {
-      console.error(`Background processing job failed for lecture ${id}:`, err)
     })
+    void runProcessingQueueOnce()
 
     res.status(202).json({ status: 'processing', id })
   } catch (error) {

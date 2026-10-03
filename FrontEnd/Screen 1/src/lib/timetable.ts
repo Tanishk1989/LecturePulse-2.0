@@ -1,3 +1,5 @@
+import { writeSyncedValue } from './accountSync'
+
 export interface TimetableEntry {
   id: string
   title: string
@@ -22,7 +24,7 @@ export function loadTimetable(userId: string): TimetableEntry[] {
 }
 
 export function saveTimetable(userId: string, entries: TimetableEntry[]): void {
-  localStorage.setItem(`${STORAGE_KEY}:${userId}`, JSON.stringify(entries))
+  writeSyncedValue(userId, 'timetable', entries)
 }
 
 export function getUpcomingClass(

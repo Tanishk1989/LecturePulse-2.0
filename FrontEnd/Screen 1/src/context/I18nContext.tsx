@@ -3,6 +3,7 @@ import { useAuthContext } from '@/context/AuthContext'
 import { t, type MessageKey } from '@/lib/i18n/messages'
 import { loadUserPreferences, saveUserPreferences } from '@/lib/userPreferences'
 import type { Locale } from '@/types/i18n'
+import { subscribeSyncedValue } from '@/lib/accountSync'
 
 interface I18nContextValue {
   locale: Locale
@@ -38,6 +39,9 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     const prefs = loadUserPreferences(user.uid)
     const next = prefs.general.language === 'hi' ? 'hi' : 'en'
     setLocaleState(next)
+    return subscribeSyncedValue(user.uid, 'preferences', () => {
+      setLocaleState(loadUserPreferences(user.uid).general.language === 'hi' ? 'hi' : 'en')
+    })
   }, [user])
 
   const translate = useCallback((key: MessageKey) => t(locale, key), [locale])

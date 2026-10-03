@@ -1,4 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { useAuthContext } from '@/context/AuthContext'
+import { loadUserPreferences, saveUserPreferences } from '@/lib/userPreferences'
+import { subscribeSyncedValue } from '@/lib/accountSync'
 
 export type Theme = 'light' | 'dark'
 export type ThemePreference = 'light' | 'dark' | 'system'
@@ -16,7 +19,8 @@ interface ThemeContextValue {
 const ThemeContext = createContext<ThemeContextValue | null>(null)
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [themePreference, setThemePreference] = useState<ThemePreference>(() => {
+  const { user } = useAuthContext()
+  const [themePreference, setThemePreferenceState] = useState<ThemePreference>(() => {
     const saved = localStorage.getItem('lecturepulse:theme_preference') as ThemePreference | null
     if (saved === 'light' || saved === 'dark' || saved === 'system') return saved
 
@@ -34,6 +38,27 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     if (saved === 'small' || saved === 'medium' || saved === 'large') return saved
     return 'medium'
   })
+
+  useEffect(() => {
+    if (!user) return
+    const restore = () => {
+      const appearance = loadUserPreferences(user.uid).appearance
+      if (appearance && ['light', 'dark', 'system'].includes(appearance.themePreference)) setThemePreferenceState(appearance.themePreference)
+      if (appearance && ['small', 'medium', 'large'].includes(appearance.fontSize)) setFontSizeState(appearance.fontSize)
+    }
+    restore()
+    return subscribeSyncedValue(user.uid, 'preferences', restore)
+  }, [user?.uid])
+
+  const persistAppearance = (nextTheme: ThemePreference, nextSize: FontSize) => {
+    if (!user) return
+    const prefs = loadUserPreferences(user.uid)
+    saveUserPreferences(user.uid, { ...prefs, appearance: { themePreference: nextTheme, fontSize: nextSize } })
+  }
+  const setThemePreference = (next: ThemePreference) => {
+    setThemePreferenceState(next)
+    persistAppearance(next, fontSize)
+  }
 
   // Handle Theme Preference
   useEffect(() => {
@@ -80,11 +105,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [fontSize])
 
   const toggleTheme = () => {
-    setThemePreference((prev) => (prev === 'light' ? 'dark' : 'light'))
+    setThemePreference(themePreference === 'light' ? 'dark' : 'light')
   }
 
   const setFontSize = (size: FontSize) => {
     setFontSizeState(size)
+    persistAppearance(themePreference, size)
   }
 
   return (

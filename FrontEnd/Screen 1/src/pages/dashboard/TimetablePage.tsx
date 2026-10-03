@@ -14,6 +14,7 @@ import {
 import { IcsImportButton } from '@/components/timetable/IcsImportButton'
 import { useI18n } from '@/context/I18nContext'
 import { cn } from '@/lib/utils'
+import { subscribeSyncedValue } from '@/lib/accountSync'
 
 function emptyEntry(): TimetableEntry {
   return {
@@ -37,6 +38,7 @@ export function TimetablePage() {
   useEffect(() => {
     if (!user) return
     setEntries(loadTimetable(user.uid))
+    return subscribeSyncedValue(user.uid, 'timetable', () => setEntries(loadTimetable(user.uid)))
   }, [user])
 
   const upcoming = useMemo(() => getUpcomingClass(entries), [entries])

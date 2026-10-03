@@ -92,13 +92,10 @@ router.delete('/', requireAuth, async (req: AuthenticatedRequest, res: Response)
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })
 
   try {
-    // Check if profile exists before trying to delete to avoid 404/not found database error
-    const exists = await prisma.userProfile.findUnique({ where: { userId } })
-    if (exists) {
-      await prisma.userProfile.delete({
-        where: { userId },
-      })
-    }
+    await prisma.$transaction(async tx => {
+      await tx.$executeRaw`DELETE FROM user_sync_documents WHERE user_id=${userId}`
+      await tx.userProfile.deleteMany({ where: { userId } })
+    })
     res.json({ success: true, message: 'User profile deleted successfully.' })
   } catch (error) {
     return sendRouteError(res, error, 'Failed to delete user profile.')

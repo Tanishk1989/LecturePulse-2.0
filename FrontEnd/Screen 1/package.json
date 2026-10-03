@@ -5,6 +5,7 @@
   "type": "module",
   "overrides": { "@grpc/grpc-js": "~1.13.6" },
   "scripts": {
+    "test:sync": "node --test scripts/test-account-sync.mjs",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "test:markdown": "node --experimental-strip-types --test scripts/test-markdown.mjs",

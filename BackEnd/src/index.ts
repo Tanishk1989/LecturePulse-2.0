@@ -18,11 +18,14 @@ import examCountdownRouter from './routes/examCountdown'
 import searchRouter from './routes/search'
 import sharesRouter from './routes/shares'
 import analyticsRouter from './routes/analytics'
+import userSyncRouter from './routes/userSync'
 import { ensureUploadDirs, initializeStorage, storageMode, UPLOADS_ROOT } from './config/storage'
 import { prisma } from './config/db'
 import { resolveApiError } from './utils/apiError'
 import { isFfmpegAvailable } from './services/audioConvertService'
 import { isBundledYouTubeDownloaderAvailable } from './services/youtubeService'
+import { initializePersistenceSchema } from './services/persistenceSchema'
+import { recoverProcessingJobs, startProcessingWorker } from './services/processingQueue'
 
 ensureUploadDirs()
 
@@ -31,7 +34,7 @@ const PORT = process.env.PORT || 5000
 const audioConversionAvailable = isFfmpegAvailable()
 
 app.use(cors())
-app.use(express.json())
+app.use(express.json({ limit: '128kb' }))
 
 app.use('/uploads', mediaRouter)
 
@@ -48,6 +51,7 @@ app.use('/api/exam-countdown', examCountdownRouter)
 app.use('/api/search', searchRouter)
 app.use('/api/shares', sharesRouter)
 app.use('/api/analytics', analyticsRouter)
+app.use('/api/user-sync', userSyncRouter)
 
 
 app.get('/', (_req, res) => {
@@ -61,7 +65,7 @@ app.get('/', (_req, res) => {
 })
 
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'healthy', storage: storageMode(), audioConversion: audioConversionAvailable, youtubeDownloader: isBundledYouTubeDownloaderAvailable(), revision: process.env.RENDER_GIT_COMMIT?.slice(0, 7), timestamp: new Date().toISOString() })
+  res.json({ status: 'healthy', storage: storageMode(), processingQueue: 'postgres', accountSync: 'postgres', audioConversion: audioConversionAvailable, youtubeDownloader: isBundledYouTubeDownloaderAvailable(), revision: process.env.RENDER_GIT_COMMIT?.slice(0, 7), timestamp: new Date().toISOString() })
 })
 
 app.get('/api/health/db', async (_req, res) => {
@@ -115,11 +119,16 @@ async function startServer() {
   try {
     await initializeStorage()
     await connectDatabase()
+    await initializePersistenceSchema()
+    await recoverProcessingJobs()
   } catch {
     process.exit(1)
   }
 
   app.listen(PORT, () => {
+    const stopWorker = startProcessingWorker()
+    process.once('SIGTERM', stopWorker)
+    process.once('SIGINT', stopWorker)
     console.log(`LecturePulse 2.0 Backend listening on port ${PORT}`)
     console.log(`Local uploads served from ${path.resolve(UPLOADS_ROOT)}`)
   })

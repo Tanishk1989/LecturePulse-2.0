@@ -17,6 +17,7 @@ import {
   buildTutorContext,
   type TutorMessage,
 } from '@/services/aiTutorService'
+import { normalizeTutorHistory, protectSyncedDocument, subscribeSyncedValue, writeSyncedValue } from '@/lib/accountSync'
 
 const PROCESSING_MESSAGE =
   "This lecture's notes are still processing — try asking again in a moment."
@@ -64,34 +65,35 @@ export function AiTutorProvider({ children }: { children: ReactNode }) {
   const messagesRef = useRef(messages)
   messagesRef.current = messages
 
-  const loadedTopicIdRef = useRef<string | null>(null)
+  const [loadedHistoryKey, setLoadedHistoryKey] = useState<string | null>(null)
 
   // Load messages from localStorage when selectedLectureId or user changes
   useEffect(() => {
     if (!user) {
       setMessages([])
-      loadedTopicIdRef.current = null
+      setLoadedHistoryKey(null)
       return
     }
     const topicId = selectedLectureId || 'all'
     const storageKey = `lecturepulse:tutor:history:${user.uid}:${topicId}`
-    const saved = localStorage.getItem(storageKey)
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved) as TutorMessage[]
-        const sanitized = parsed.map((m) => ({
-          ...m,
-          isStreaming: false,
-        }))
-        setMessages(sanitized)
-      } catch (e) {
-        console.error('Failed to load tutor history:', e)
+    const loadHistory = () => {
+      const saved = localStorage.getItem(storageKey)
+      if (saved) {
+        try {
+          const parsed = normalizeTutorHistory(JSON.parse(saved)) as TutorMessage[]
+          setMessages(parsed.map(message => ({ ...message, isStreaming: false })))
+        } catch {
+          setMessages([])
+        }
+      } else {
         setMessages([])
       }
-    } else {
-      setMessages([])
+      setLoadedHistoryKey(`${user.uid}:${topicId}`)
     }
-    loadedTopicIdRef.current = topicId
+    loadHistory()
+    return subscribeSyncedValue(user.uid, `tutor-history:${topicId}`, () => {
+      if (!loadingContextRef.current && !messagesRef.current.some(message => message.isStreaming)) loadHistory()
+    })
   }, [selectedLectureId, user])
 
   // Save messages to localStorage when they change
@@ -100,20 +102,18 @@ export function AiTutorProvider({ children }: { children: ReactNode }) {
     const topicId = selectedLectureId || 'all'
     
     // Only save if the messages state matches the currently loaded topic context
-    if (topicId !== loadedTopicIdRef.current) return
+    if (`${user.uid}:${topicId}` !== loadedHistoryKey || loading) return
 
-    const storageKey = `lecturepulse:tutor:history:${user.uid}:${topicId}`
-    if (messages.length > 0) {
-      const clean = messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-        hasError: m.hasError,
-      }))
-      localStorage.setItem(storageKey, JSON.stringify(clean))
-    } else {
-      localStorage.removeItem(storageKey)
+    if (messages.some(message => !message.id)) {
+      setMessages(previous => previous.map(message => ({ ...message, id: message.id ?? crypto.randomUUID() })))
+      return
     }
-  }, [messages, selectedLectureId, user])
+    writeSyncedValue(user.uid, `tutor-history:${topicId}`, normalizeTutorHistory(messages))
+  }, [messages, selectedLectureId, user, loading, loadedHistoryKey])
+
+  useEffect(() => {
+    if (loading && user) return protectSyncedDocument(user.uid, `tutor-history:${selectedLectureId || 'all'}`)
+  }, [loading, user?.uid, selectedLectureId])
 
   const flashContext = useCallback(() => {
     if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current)
@@ -137,6 +137,7 @@ export function AiTutorProvider({ children }: { children: ReactNode }) {
 
   const applyLectureSelection = useCallback(
     (lectureId: string | null, options: { auto: boolean; preserveMessages: boolean }) => {
+      if (loading) return
       const changed = prevLectureIdRef.current !== lectureId
       prevLectureIdRef.current = lectureId
       setSelectedLectureId(lectureId)
@@ -150,7 +151,7 @@ export function AiTutorProvider({ children }: { children: ReactNode }) {
         }
       }
     },
-    [appendContextNotice, flashContext],
+    [appendContextNotice, flashContext, loading],
   )
 
   const syncFromRoute = useCallback(

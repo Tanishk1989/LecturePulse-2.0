@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   Bell,
@@ -19,6 +19,7 @@ import { useToast } from '@/components/ui/ToastProvider'
 import { useTheme } from '@/context/ThemeContext'
 import { useI18n } from '@/context/I18nContext'
 import { loadUserPreferences, saveUserPreferences } from '@/lib/userPreferences'
+import { subscribeSyncedValue } from '@/lib/accountSync'
 import { exportUserDataArchive } from '@/services/dataExportService'
 import { fetchUserProfile, updateUserProfile, type UserProfile } from '@/services/profileService'
 import type { UserPreferences } from '@/types/userPreferences'
@@ -81,6 +82,7 @@ export function SettingsPage() {
   const { setLocale, translate } = useI18n()
   const [searchParams, setSearchParams] = useSearchParams()
   const [prefs, setPrefs] = useState<UserPreferences | null>(null)
+  const unsavedPrefs = useRef(false)
   const [dbProfile, setDbProfile] = useState<UserProfile | null>(null)
   const [saving, setSaving] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -91,7 +93,11 @@ export function SettingsPage() {
 
   useEffect(() => {
     if (!user) return
+    unsavedPrefs.current = false
     setPrefs(loadUserPreferences(user.uid))
+    return subscribeSyncedValue(user.uid, 'preferences', () => {
+      if (!unsavedPrefs.current) setPrefs(loadUserPreferences(user.uid))
+    })
   }, [user])
 
   useEffect(() => {
@@ -117,6 +123,7 @@ export function SettingsPage() {
   )
 
   const updatePrefs = useCallback((patch: Partial<UserPreferences>) => {
+    unsavedPrefs.current = true
     setPrefs((prev) => (prev ? { ...prev, ...patch } : prev))
   }, [])
 
@@ -156,8 +163,9 @@ export function SettingsPage() {
     if (!user || !prefs) return
     setSaving(true)
     try {
-      saveUserPreferences(user.uid, prefs)
-      toast.success('Settings saved.')
+      unsavedPrefs.current = false
+      saveUserPreferences(user.uid, { ...prefs, appearance: loadUserPreferences(user.uid).appearance })
+      toast.success('Settings saved on this device; cloud sync is automatic.')
     } catch (error) {
       toast.error(getAuthErrorMessage(error))
     } finally {

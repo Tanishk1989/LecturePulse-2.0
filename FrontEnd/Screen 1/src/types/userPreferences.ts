@@ -1,6 +1,7 @@
 export type SummaryStyle = 'concise' | 'detailed'
 
 export interface UserPreferences {
+  appearance?: { themePreference: 'light' | 'dark' | 'system'; fontSize: 'small' | 'medium' | 'large' }
   bio: string
   general: {
     language: string

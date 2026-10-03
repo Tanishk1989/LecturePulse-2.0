@@ -10,6 +10,7 @@ import { getCachedProfile } from '@/services/profileService'
 const MAX_LECTURES = 5
 
 export interface TutorMessage {
+  id?: string
   role: 'user' | 'assistant' | 'context-notice'
   content: string
   isStreaming?: boolean

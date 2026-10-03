@@ -19,6 +19,7 @@ import { countDueFlashcards } from '@/lib/flashcardStudy'
 import { loadUserPreferences } from '@/lib/userPreferences'
 import { loadTimetable } from '@/lib/timetable'
 import { NotFoundPage } from '@/components/shared/NotFoundPage'
+import { AccountSyncStatus } from '@/components/shared/AccountSyncStatus'
 
 const LandingPage = lazy(() => import('@/pages/LandingPage').then(m => ({ default: m.LandingPage })))
 const LoginPage = lazy(() => import('@/pages/LoginPage').then(m => ({ default: m.LoginPage })))
@@ -393,6 +394,7 @@ function App() {
         <ThemeProvider>
           <ToastProvider>
             <NotificationService />
+            <AccountSyncStatus />
             <Suspense fallback={<div role="status" aria-label="Loading page" className="flex min-h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-accent" /></div>}>
               <AppRoutes />
             </Suspense>

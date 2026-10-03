@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils'
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer'
 import { getUserNotes } from '@/services/notesService'
 import type { LectureNotes } from '@/types/notes'
+import { subscribeSyncedValue, writeSyncedValue } from '@/lib/accountSync'
 
 const suggestionConfig = [
   { text: 'Explain this concept', icon: Lightbulb },
@@ -130,11 +131,18 @@ export function AITutorPage() {
         } catch (e) {}
       }
       list = [topicId, ...list.filter((id) => id !== topicId)].slice(0, 5)
-      localStorage.setItem(key, JSON.stringify(list))
+      writeSyncedValue(user.uid, 'tutor-recent', list)
       setRecentTopics(list)
     },
     [user],
   )
+
+  useEffect(() => {
+    if (!user) return
+    return subscribeSyncedValue(user.uid, 'tutor-recent', () => {
+      try { setRecentTopics(JSON.parse(localStorage.getItem(`lecturepulse:tutor:recent_topics:${user.uid}`) ?? '[]')) } catch { /* Keep current topics on invalid legacy data. */ }
+    })
+  }, [user])
 
   // Handle starter questions generation
   useEffect(() => {

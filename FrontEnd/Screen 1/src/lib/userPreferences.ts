@@ -2,6 +2,7 @@ import {
   DEFAULT_USER_PREFERENCES,
   type UserPreferences,
 } from '@/types/userPreferences'
+import { writeSyncedValue } from './accountSync'
 
 const STORAGE_PREFIX = 'lecturepulse:prefs:'
 
@@ -27,7 +28,7 @@ export function loadUserPreferences(userId: string): UserPreferences {
 }
 
 export function saveUserPreferences(userId: string, preferences: UserPreferences): void {
-  localStorage.setItem(storageKey(userId), JSON.stringify(preferences))
+  writeSyncedValue(userId, 'preferences', preferences)
 }
 
 export function clearUserPreferences(userId: string): void {

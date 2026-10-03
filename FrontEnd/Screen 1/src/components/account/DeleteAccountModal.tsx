@@ -4,7 +4,7 @@ import { Loader2, X } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useLectures } from '@/hooks/useLectures'
 import { useToast } from '@/components/ui/ToastProvider'
-import { clearUserPreferences } from '@/lib/userPreferences'
+import { clearAccountSyncCache, suspendAccountSync } from '@/lib/accountSync'
 import { deleteLecture } from '@/services/lectureService'
 import {
   deleteFirebaseAccount,
@@ -43,21 +43,19 @@ export function DeleteAccountModal({ open, onClose }: DeleteAccountModalProps) {
   const handleDelete = async () => {
     if (!user || !confirmValid) return
     setDeleting(true)
+    const resumeSync = suspendAccountSync(user.uid)
 
     try {
       for (const lecture of lectures) {
         await deleteLecture(user.uid, lecture.id)
       }
-      clearUserPreferences(user.uid)
-      try {
-        await deleteUserProfile()
-      } catch (err) {
-        console.error('Failed to delete database profile:', err)
-      }
+      await deleteUserProfile()
       await deleteFirebaseAccount(needsPassword ? password : undefined)
+      clearAccountSyncCache(user.uid)
       toast.success('Your account has been deleted.')
       onClose()
     } catch (error) {
+      resumeSync()
       toast.error(getAuthErrorMessage(error))
     } finally {
       setDeleting(false)

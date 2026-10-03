@@ -15,6 +15,7 @@ export interface ProcessLectureOptions {
   forceRetranscribe?: boolean
   transcriptionLanguage?: string
   outputLanguage?: string
+  assertActive?: () => Promise<void>
 }
 
 export { parseYouTubeVideoId, isYouTubeUrl }
@@ -134,6 +135,7 @@ export async function triggerLectureProcessing(
   const outputLanguage = normalizeOutputLanguage(options.outputLanguage)
 
   try {
+    await options.assertActive?.()
     const lecture = await prisma.lecture.findFirst({
       where: { id: lectureId, userId }
     })
@@ -244,6 +246,7 @@ export async function triggerLectureProcessing(
 
         sourceText = cleanedText
 
+        await options.assertActive?.()
         await prisma.transcript.update({
           where: { id: transcript.id },
           data: {
@@ -291,6 +294,7 @@ export async function triggerLectureProcessing(
           }
         })()
       } catch (err: any) {
+        await options.assertActive?.()
         const msg = formatGroqError(err)
         await prisma.transcript.update({
           where: { id: transcript.id },
@@ -378,6 +382,7 @@ export async function triggerLectureProcessing(
         try {
           const notesContent = await generateStructuredNotes(sourceText, userId, { outputLanguage })
 
+          await options.assertActive?.()
           await prisma.lectureNote.update({
             where: { id: notes.id },
             data: {
@@ -399,6 +404,7 @@ export async function triggerLectureProcessing(
             console.error(`Knowledge graph extraction failed for lecture ${lectureId}:`, kgErr)
           })
         } catch (err: any) {
+          await options.assertActive?.()
           const msg = formatGroqError(err)
           await prisma.lectureNote.update({
             where: { id: notes.id },
@@ -408,6 +414,7 @@ export async function triggerLectureProcessing(
               updatedAt: new Date()
             }
           })
+          throw err
         }
       }
     }
@@ -431,15 +438,18 @@ export async function triggerLectureProcessing(
       }
     }
 
+    await options.assertActive?.()
     await prisma.lecture.update({
       where: { id: lectureId },
       data: { status: 'completed' },
     })
   } catch (error) {
+    await options.assertActive?.()
     console.error(`Error processing lecture ${lectureId}:`, error)
     await prisma.lecture.update({
       where: { id: lectureId },
       data: { status: 'failed' }
     }).catch(() => {})
+    throw error
   }
 }
