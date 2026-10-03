@@ -31,6 +31,13 @@ const GROQ_KEY_HELP =
 
 export function formatGroqError(error: unknown): string {
   const message = String(error instanceof Error ? error.message : error ?? '')
+  // Keep diagnostics useful without logging request bodies, headers or credentials.
+  if (error instanceof Groq.APIError) {
+    const body = error.error as { error?: { code?: unknown; type?: unknown }; code?: unknown; type?: unknown } | undefined
+    const details = body?.error ?? body
+    const safeTag = (value: unknown) => typeof value === 'string' && /^[a-zA-Z0-9_.-]{1,80}$/.test(value) ? value : undefined
+    console.error('[Groq] Request failed', { status: error.status, code: safeTag(details?.code), type: safeTag(details?.type) })
+  }
 
   if (
     /invalid api key|invalid_api_key|401/i.test(message) ||
@@ -43,17 +50,25 @@ export function formatGroqError(error: unknown): string {
     return 'Audio file is too large for transcription. Try a shorter lecture or ensure ffmpeg is installed.'
   }
 
-  if (/too long|context|token/i.test(message)) {
-    return 'Transcript input is too long for AI processing. Notes will use the raw transcript instead.'
-  }
-
   if (/rate limit|429/i.test(message)) {
     return 'Groq rate limit reached. Wait a minute and try again.'
   }
 
+  if (/too long|context length|maximum.*token/i.test(message)) {
+    return 'Transcript input is too long for AI processing. Notes will use the raw transcript instead.'
+  }
+
+  if (/model.*(decommission|not found|not.*supported|not.*allowed|disabled)|model_not_found|model_permission/i.test(message)) {
+    return 'The configured AI model is unavailable or disabled for this Groq project.'
+  }
+
+  if (/403|permission|access denied|forbidden/i.test(message)) {
+    return 'Groq denied this AI request. Check project model permissions and account access.'
+  }
+
   // Avoid surfacing raw JSON error blobs in the UI.
   if (message.startsWith('401') || message.startsWith('403') || message.includes('{"error"')) {
-    return `AI service request failed. ${GROQ_KEY_HELP}`
+    return 'AI service request failed. Please retry or check backend provider diagnostics.'
   }
 
   return message || 'AI processing failed. Please try again.'
