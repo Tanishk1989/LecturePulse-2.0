@@ -203,7 +203,7 @@ export async function retrieveRelevantChunksHybrid(
         return { context: contextString, usedFallback: false }
       }
     } catch (error) {
-      console.warn('Vector RAG failed, using keyword fallback:', error)
+      console.warn('Lecture retrieval failed, using local keyword fallback:', error)
     }
   }
 

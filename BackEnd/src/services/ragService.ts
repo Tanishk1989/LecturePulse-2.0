@@ -1,94 +1,38 @@
 import { prisma } from '../config/db'
-import { cosineSimilarity, embedText, embedTexts } from './embeddingService'
+import { chunkTranscript, rankChunks } from './lexicalRetrieval'
 
-const CHUNK_WORDS = 180
-const CHUNK_OVERLAP = 40
-
-function chunkTranscript(text: string): string[] {
-  const words = text.trim().split(/\s+/).filter(Boolean)
-  if (words.length === 0) return []
-
-  const chunks: string[] = []
-  let index = 0
-
-  while (index < words.length) {
-    const slice = words.slice(index, index + CHUNK_WORDS)
-    chunks.push(slice.join(' '))
-    if (index + CHUNK_WORDS >= words.length) break
-    index += CHUNK_WORDS - CHUNK_OVERLAP
-  }
-
-  return chunks
-}
-
-export async function indexLectureRag(
-  lectureId: string,
-  userId: string,
-  transcript: string,
-): Promise<number> {
+export async function indexLectureRag(lectureId: string, userId: string, transcript: string): Promise<number> {
+  const lecture = await prisma.lecture.findFirst({ where: { id: lectureId, userId }, select: { id: true } })
+  if (!lecture) return 0
   const chunks = chunkTranscript(transcript)
-  if (chunks.length === 0) return 0
-
-  await prisma.ragChunk.deleteMany({ where: { lectureId, userId } })
-
-  const batchSize = 16
-  let stored = 0
-
-  for (let i = 0; i < chunks.length; i += batchSize) {
-    const batch = chunks.slice(i, i + batchSize)
-    const embeddings = await embedTexts(batch)
-
-    await prisma.ragChunk.createMany({
-      data: batch.map((text, offset) => ({
-        lectureId,
-        userId,
-        chunkIndex: i + offset,
-        text,
-        embedding: embeddings[offset] ?? [],
-      })),
+  // Atomic replacement preserves the old index if any write fails.
+  await prisma.$transaction(async tx => {
+    await tx.ragChunk.deleteMany({ where: { lectureId, userId } })
+    if (chunks.length) await tx.ragChunk.createMany({
+      data: chunks.map((text, chunkIndex) => ({ lectureId, userId, chunkIndex, text, embedding: [] })),
     })
-
-    stored += batch.length
-  }
-
-  return stored
+  })
+  return chunks.length
 }
 
-export async function retrieveRagChunks(
-  userId: string,
-  question: string,
-  lectureIds: string[],
-  topK = 6,
-): Promise<Array<{ text: string; lectureId: string; lectureTitle: string; score: number }>> {
-  if (!question.trim() || lectureIds.length === 0) return []
-
-  const queryEmbedding = await embedText(question)
-
-  const chunks = await prisma.ragChunk.findMany({
+export async function retrieveRagChunks(userId: string, question: string, lectureIds: string[], topK = 6) {
+  if (!question.trim() || !lectureIds.length) return []
+  // Current transcripts also recover lectures whose old embedding index failed.
+  // Check both transcript and parent ownership; caller-supplied IDs are untrusted.
+  const transcripts = await prisma.transcript.findMany({
     where: {
-      userId,
-      lectureId: { in: lectureIds.slice(0, 10) },
+      userId, status: 'completed', lectureId: { in: [...new Set(lectureIds)].slice(0, 10) },
+      lecture: { userId },
     },
-    include: {
-      lecture: { select: { title: true } },
-    },
+    select: { lectureId: true, fullText: true, lecture: { select: { title: true } } },
+    orderBy: { updatedAt: 'desc' },
   })
-
-  if (chunks.length === 0) return []
-
-  const scored = chunks
-    .map((chunk) => {
-      const embedding = Array.isArray(chunk.embedding) ? (chunk.embedding as number[]) : []
-      return {
-        text: chunk.text,
-        lectureId: chunk.lectureId,
-        lectureTitle: chunk.lecture.title,
-        score: cosineSimilarity(queryEmbedding, embedding),
-      }
-    })
-    .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, topK)
-
-  return scored
+  const seen = new Set<string>()
+  return rankChunks(question, transcripts.flatMap(transcript => {
+    if (seen.has(transcript.lectureId)) return []
+    seen.add(transcript.lectureId)
+    return chunkTranscript(transcript.fullText).map(text => ({
+      text, lectureId: transcript.lectureId, lectureTitle: transcript.lecture.title,
+    }))
+  }), topK)
 }

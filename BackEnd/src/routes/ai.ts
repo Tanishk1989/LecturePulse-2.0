@@ -187,7 +187,7 @@ router.get('/feedback', requireAuth, async (req: AuthenticatedRequest, res: Resp
   }
 })
 
-// POST /api/ai/rag-retrieve - Semantic search over indexed lecture chunks
+// POST /api/ai/rag-retrieve - Ranked keyword search over owned transcripts
 router.post('/rag-retrieve', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.uid
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })
