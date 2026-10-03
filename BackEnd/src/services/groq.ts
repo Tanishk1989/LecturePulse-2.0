@@ -10,6 +10,10 @@ import {
 
 export type { AiOutputLanguage }
 
+export function getGroqChatModel(): string {
+  return process.env.GROQ_CHAT_MODEL?.trim() || 'openai/gpt-oss-120b'
+}
+
 export interface EnhancePromptOptions {
   outputLanguage?: AiOutputLanguage
   /** Transcript cleanup only — do not apply study-output language rules */
@@ -122,7 +126,7 @@ export async function groqChatCompletion(
   const groq = getGroqClient()
   try {
     const completion = await groq.chat.completions.create({
-    model: options?.model || 'llama-3.3-70b-versatile',
+    model: options?.model || getGroqChatModel(),
     temperature: options?.temperature !== undefined ? options.temperature : 0.4,
     messages: [
       { role: 'system', content: enhancedPrompt },

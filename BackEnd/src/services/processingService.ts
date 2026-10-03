@@ -36,7 +36,6 @@ Rules:
 8. Output only the cleaned transcript text. No preamble, no explanation, no markdown formatting.`
 
   return groqChatCompletion(systemPrompt, rawTranscript, {
-    model: 'llama-3.3-70b-versatile',
     temperature: 0.2,
     transcriptOnly: true,
   })
@@ -92,7 +91,6 @@ Example outputs:
 - Indian Constitution — Fundamental Rights and Duties`
 
   const response = await groqChatCompletion(systemPrompt, `Content excerpt:\n\n${excerpt}`, {
-    model: 'llama-3.3-70b-versatile',
     temperature: 0.3,
   })
 

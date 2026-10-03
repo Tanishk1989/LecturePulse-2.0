@@ -1,6 +1,6 @@
 import { Router, Response } from 'express'
 import { AuthenticatedRequest, requireAuth } from '../middleware/auth'
-import { groqChatCompletion, getGroqClient, enhanceSystemPrompt } from '../services/groq'
+import { groqChatCompletion, getGroqClient, getGroqChatModel, enhanceSystemPrompt } from '../services/groq'
 import { normalizeOutputLanguage } from '../services/outputLanguage'
 import { prisma } from '../config/db'
 import { transcribeFromUrl } from '../services/transcribeService'
@@ -117,7 +117,7 @@ router.post('/stream-chat', requireAuth, async (req: AuthenticatedRequest, res: 
   try {
     const groq = getGroqClient()
     const stream = await groq.chat.completions.create({
-      model: model || 'llama-3.3-70b-versatile',
+      model: model || getGroqChatModel(),
       temperature: temperature !== undefined ? temperature : 0.4,
       messages: [
         {
