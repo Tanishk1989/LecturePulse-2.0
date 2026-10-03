@@ -2,6 +2,7 @@ import { groqTranscribeBuffer } from './groq'
 import { readFileBufferFromUrl } from '../config/storage'
 import { prisma } from '../config/db'
 import { convertBufferToMonoWav } from './audioConvertService'
+import { parseWavHeader, splitWavBuffer, type WavHeaderInfo } from './wavAudio'
 
 function extensionFromContentType(contentType: string | null): string {
   if (!contentType) return 'webm'
@@ -12,113 +13,7 @@ function extensionFromContentType(contentType: string | null): string {
   return 'webm'
 }
 
-interface WavHeaderInfo {
-  numChannels: number
-  sampleRate: number
-  byteRate: number
-  blockAlign: number
-  bitsPerSample: number
-  dataOffset: number
-  dataSize: number
-  duration: number
-}
-
-function parseWavHeader(buffer: Buffer): WavHeaderInfo | null {
-  if (buffer.length < 44) return null
-  const riff = buffer.toString('ascii', 0, 4)
-  const wave = buffer.toString('ascii', 8, 12)
-  if (riff !== 'RIFF' || wave !== 'WAVE') return null
-
-  // Search for fmt chunk
-  let fmtOffset = -1
-  for (let i = 12; i < Math.min(buffer.length - 8, 100); i++) {
-    if (buffer.toString('ascii', i, i + 4) === 'fmt ') {
-      fmtOffset = i
-      break
-    }
-  }
-  if (fmtOffset === -1) return null
-
-  const numChannels = buffer.readUInt16LE(fmtOffset + 8)
-  const sampleRate = buffer.readUInt32LE(fmtOffset + 12)
-  const byteRate = buffer.readUInt32LE(fmtOffset + 16)
-  const blockAlign = buffer.readUInt16LE(fmtOffset + 20)
-  const bitsPerSample = buffer.readUInt16LE(fmtOffset + 22)
-
-  // Search for data chunk
-  let dataOffset = -1
-  for (let i = fmtOffset + 8; i < Math.min(buffer.length - 8, 1000); i++) {
-    if (buffer.toString('ascii', i, i + 4) === 'data') {
-      dataOffset = i
-      break
-    }
-  }
-  if (dataOffset === -1) return null
-
-  const dataSize = buffer.readUInt32LE(dataOffset + 4)
-  const duration = dataSize / byteRate
-
-  return {
-    numChannels,
-    sampleRate,
-    byteRate,
-    blockAlign,
-    bitsPerSample,
-    dataOffset,
-    dataSize,
-    duration,
-  }
-}
-
-function splitWavBuffer(
-  buffer: Buffer,
-  wavInfo: WavHeaderInfo,
-  chunkDurationSeconds: number,
-): Buffer[] {
-  const chunks: Buffer[] = []
-  const byteRate = wavInfo.byteRate
-  const blockAlign = wavInfo.blockAlign
-  const dataOffset = wavInfo.dataOffset
-  const audioDataStart = dataOffset + 8
-
-  // Calculate chunk size in bytes, aligned to blockAlign
-  const chunkSizeBytes = Math.floor((byteRate * chunkDurationSeconds) / blockAlign) * blockAlign
-
-  let offset = audioDataStart
-  while (offset < buffer.length) {
-    const currentChunkSize = Math.min(chunkSizeBytes, buffer.length - offset)
-    if (currentChunkSize <= 0) break
-
-    const audioChunk = buffer.subarray(offset, offset + currentChunkSize)
-
-    // Construct new WAV header
-    const header = Buffer.alloc(audioDataStart)
-    buffer.copy(header, 0, 0, audioDataStart)
-
-    // Update overall RIFF size (file size - 8)
-    header.writeUInt32LE(header.length + audioChunk.length - 8, 4)
-
-    // Update data subchunk size
-    header.writeUInt32LE(audioChunk.length, dataOffset + 4)
-
-    const wavFile = Buffer.concat([header, audioChunk])
-    chunks.push(wavFile)
-
-    offset += currentChunkSize
-  }
-
-  return chunks
-}
-
 const GROQ_MAX_BYTES = 20 * 1024 * 1024 // stay under Groq's ~25MB limit
-
-function getSafeChunkDurationSeconds(wavInfo: WavHeaderInfo): number {
-  const headerOverhead = wavInfo.dataOffset + 8
-  const maxAudioBytes = GROQ_MAX_BYTES - headerOverhead
-  const seconds = Math.floor(maxAudioBytes / wavInfo.byteRate)
-  // Between 2 and 6 minutes per chunk depending on sample rate / channels.
-  return Math.max(120, Math.min(360, seconds))
-}
 
 async function prepareWavBuffer(
   buffer: Buffer,
@@ -131,7 +26,8 @@ async function prepareWavBuffer(
     !wavInfo ||
     workingBuffer.length > GROQ_MAX_BYTES ||
     wavInfo.sampleRate > 16000 ||
-    wavInfo.numChannels > 1
+    wavInfo.numChannels > 1 ||
+    wavInfo.bitsPerSample !== 16
 
   if (mustNormalize) {
     workingBuffer = await convertBufferToMonoWav(workingBuffer, wavInfo ? 'wav' : ext)
@@ -159,8 +55,7 @@ async function transcribeWavInChunks(
   duration?: number
   segments?: Array<{ id: number; start: number; end: number; text: string }>
 }> {
-  const chunkDuration = getSafeChunkDurationSeconds(wavInfo)
-  const wavChunks = splitWavBuffer(workingBuffer, wavInfo, chunkDuration)
+  const wavChunks = splitWavBuffer(workingBuffer, wavInfo, GROQ_MAX_BYTES)
   const totalChunks = wavChunks.length
 
   let combinedText = ''
@@ -168,7 +63,7 @@ async function transcribeWavInChunks(
   let resolvedLanguage = language || 'en'
 
   for (let i = 0; i < totalChunks; i++) {
-    if (wavChunks[i].length > GROQ_MAX_BYTES) {
+    if (wavChunks[i].buffer.length > GROQ_MAX_BYTES) {
       throw new Error(
         `Internal chunking error: part ${i + 1} is still too large. Contact support.`,
       )
@@ -189,7 +84,7 @@ async function transcribeWavInChunks(
     }
 
     const chunkResult = await groqTranscribeBuffer(
-      wavChunks[i],
+      wavChunks[i].buffer,
       `audio_part_${i + 1}.wav`,
       'audio/wav',
       language,
@@ -205,7 +100,7 @@ async function transcribeWavInChunks(
       combinedText += (combinedText ? ' ' : '') + chunkText
     }
 
-    const chunkOffsetSeconds = i * chunkDuration
+    const chunkOffsetSeconds = wavChunks[i].startSeconds
     const chunkSegments = (chunkResult.segments ?? []).map((seg, idx) => ({
       id: combinedSegments.length + idx,
       start: seg.start + chunkOffsetSeconds,
@@ -249,16 +144,9 @@ export async function transcribeFromUrl(
 
   const ext = extensionFromContentType(resolvedContentType)
 
+  let prepared: Awaited<ReturnType<typeof prepareWavBuffer>>
   try {
-    const { buffer: workingBuffer, wavInfo } = await prepareWavBuffer(buffer, ext)
-    const needsChunking =
-      wavInfo.duration > 600 || workingBuffer.length > GROQ_MAX_BYTES
-
-    if (needsChunking) {
-      return transcribeWavInChunks(workingBuffer, wavInfo, language, lectureId, subject)
-    }
-
-    return groqTranscribeBuffer(workingBuffer, 'audio.wav', 'audio/wav', language, subject)
+    prepared = await prepareWavBuffer(buffer, ext)
   } catch (prepErr) {
     // Last resort for small compressed files that fit in one Groq request.
     if (buffer.length <= GROQ_MAX_BYTES) {
@@ -267,4 +155,10 @@ export async function transcribeFromUrl(
     }
     throw prepErr
   }
+  // Provider failures must not restart a completed chunk sequence or duplicate billing.
+  const { buffer: workingBuffer, wavInfo } = prepared
+  if (wavInfo.duration > 600 || workingBuffer.length > GROQ_MAX_BYTES) {
+    return transcribeWavInChunks(workingBuffer, wavInfo, language, lectureId, subject)
+  }
+  return groqTranscribeBuffer(workingBuffer, 'audio.wav', 'audio/wav', language, subject)
 }

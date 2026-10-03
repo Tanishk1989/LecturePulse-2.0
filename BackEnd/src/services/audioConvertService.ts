@@ -1,8 +1,9 @@
 import { execFile, execFileSync } from 'child_process'
-import { existsSync, mkdtempSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, unlinkSync, rmdirSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import path from 'path'
 import { promisify } from 'util'
+import bundledFfmpeg from 'ffmpeg-static'
 
 const execFileAsync = promisify(execFile)
 
@@ -29,10 +30,12 @@ function discoverFfmpegFromWinGet(): string | null {
   return null
 }
 
-function discoverFfmpegCommand(): string | null {
+export function discoverFfmpegCommand(): string | null {
   if (process.env.FFMPEG_PATH && existsSync(process.env.FFMPEG_PATH)) {
     return process.env.FFMPEG_PATH
   }
+
+  if (bundledFfmpeg && existsSync(bundledFfmpeg)) return bundledFfmpeg
 
   const wingetPath = discoverFfmpegFromWinGet()
   if (wingetPath) return wingetPath
@@ -90,5 +93,6 @@ export async function convertBufferToMonoWav(buffer: Buffer, inputExt: string): 
         // ignore cleanup errors
       }
     }
+    try { rmdirSync(tempDir) } catch { /* preserve unexpected files */ }
   }
 }

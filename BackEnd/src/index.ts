@@ -21,11 +21,13 @@ import analyticsRouter from './routes/analytics'
 import { ensureUploadDirs, initializeStorage, storageMode, UPLOADS_ROOT } from './config/storage'
 import { prisma } from './config/db'
 import { resolveApiError } from './utils/apiError'
+import { isFfmpegAvailable } from './services/audioConvertService'
 
 ensureUploadDirs()
 
 const app = express()
 const PORT = process.env.PORT || 5000
+const audioConversionAvailable = isFfmpegAvailable()
 
 app.use(cors())
 app.use(express.json())
@@ -58,7 +60,7 @@ app.get('/', (_req, res) => {
 })
 
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'healthy', storage: storageMode(), revision: process.env.RENDER_GIT_COMMIT?.slice(0, 7), timestamp: new Date().toISOString() })
+  res.json({ status: 'healthy', storage: storageMode(), audioConversion: audioConversionAvailable, revision: process.env.RENDER_GIT_COMMIT?.slice(0, 7), timestamp: new Date().toISOString() })
 })
 
 app.get('/api/health/db', async (_req, res) => {

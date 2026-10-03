@@ -5,7 +5,7 @@ import { promisify } from 'util'
 import { Innertube } from 'youtubei.js'
 import { parseYouTubeVideoId } from './youtubeUtils'
 import { LECTURES_CATEGORY, getAbsolutePath, buildFileUrl, storeFile } from '../config/storage'
-import { convertBufferToMonoWav, isFfmpegAvailable } from './audioConvertService'
+import { convertBufferToMonoWav, isFfmpegAvailable, discoverFfmpegCommand } from './audioConvertService'
 
 const execFileAsync = promisify(execFile)
 
@@ -181,6 +181,8 @@ export async function downloadYouTubeAudio(youtubeUrl: string, lectureId: string
         'wav',
         '--postprocessor-args',
         'ffmpeg:-ar 16000 -ac 1',
+        '--ffmpeg-location',
+        discoverFfmpegCommand()!,
         '-o',
         absolutePath,
         ...YT_DLP_ARGS,
