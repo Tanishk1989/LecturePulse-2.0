@@ -18,6 +18,7 @@ import { computeStudyStreak } from '@/lib/studyMetrics'
 import { countDueFlashcards } from '@/lib/flashcardStudy'
 import { loadUserPreferences } from '@/lib/userPreferences'
 import { loadTimetable } from '@/lib/timetable'
+import { NotFoundPage } from '@/components/shared/NotFoundPage'
 
 const LandingPage = lazy(() => import('@/pages/LandingPage').then(m => ({ default: m.LandingPage })))
 const LoginPage = lazy(() => import('@/pages/LoginPage').then(m => ({ default: m.LoginPage })))
@@ -84,10 +85,11 @@ function MainShell() {
 function AppRoutes() {
   const location = useLocation()
   const isAuthPage = location.pathname === '/login' || location.pathname === '/signup'
-  const isDashboard = location.pathname.startsWith('/dashboard')
-  const isTranscript = location.pathname.startsWith('/transcript')
-  const isNotes = location.pathname.startsWith('/notes')
-  const isShared = location.pathname.startsWith('/shared')
+  const matchesSection = (path: string) => location.pathname === path || location.pathname.startsWith(`${path}/`)
+  const isDashboard = matchesSection('/dashboard')
+  const isTranscript = matchesSection('/transcript')
+  const isNotes = matchesSection('/notes')
+  const isShared = matchesSection('/shared')
 
   if (isAuthPage) {
     return (
@@ -123,6 +125,7 @@ function AppRoutes() {
             </LectureProvider>
           }
         />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     )
   }
@@ -135,6 +138,7 @@ function AppRoutes() {
             <Route index element={<LectureNotesPage />} />
           </Route>
           <Route path="/notes" element={<NotesRedirect />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </ProtectedRoute>
     )
@@ -147,6 +151,7 @@ function AppRoutes() {
           <Route path="/transcript/:lectureId" element={<DashboardLayout />}>
             <Route index element={<TranscriptPage />} />
           </Route>
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </ProtectedRoute>
     )
@@ -186,6 +191,7 @@ function AppRoutes() {
             </GuestRoute>
           }
         />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </div>
   )
