@@ -7,17 +7,9 @@ import { GuestRoute } from '@/components/auth/GuestRoute'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
 import { CursorSpotlight } from '@/components/effects/CursorSpotlight'
-import { LandingPage } from '@/pages/LandingPage'
-import { LoginPage } from '@/pages/LoginPage'
-import { SignupPage } from '@/pages/SignupPage'
-import { DashboardRoutes } from '@/pages/dashboard/DashboardRoutes'
-import { SharedNotesPage } from '@/pages/dashboard/SharedNotesPage'
-import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
-import { TranscriptPage } from '@/pages/dashboard/TranscriptPage'
-import { LectureNotesPage } from '@/pages/dashboard/LectureNotesPage'
 import { LectureProvider, useLectures } from '@/hooks/useLectures'
 import { Loader2 } from 'lucide-react'
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { getCachedProfile, fetchUserProfile } from '@/services/profileService'
 import { getUserFlashcards } from '@/services/flashcardService'
@@ -26,6 +18,15 @@ import { computeStudyStreak } from '@/lib/studyMetrics'
 import { countDueFlashcards } from '@/lib/flashcardStudy'
 import { loadUserPreferences } from '@/lib/userPreferences'
 import { loadTimetable } from '@/lib/timetable'
+
+const LandingPage = lazy(() => import('@/pages/LandingPage').then(m => ({ default: m.LandingPage })))
+const LoginPage = lazy(() => import('@/pages/LoginPage').then(m => ({ default: m.LoginPage })))
+const SignupPage = lazy(() => import('@/pages/SignupPage').then(m => ({ default: m.SignupPage })))
+const DashboardRoutes = lazy(() => import('@/pages/dashboard/DashboardRoutes').then(m => ({ default: m.DashboardRoutes })))
+const SharedNotesPage = lazy(() => import('@/pages/dashboard/SharedNotesPage').then(m => ({ default: m.SharedNotesPage })))
+const DashboardLayout = lazy(() => import('@/components/dashboard/DashboardLayout').then(m => ({ default: m.DashboardLayout })))
+const TranscriptPage = lazy(() => import('@/pages/dashboard/TranscriptPage').then(m => ({ default: m.TranscriptPage })))
+const LectureNotesPage = lazy(() => import('@/pages/dashboard/LectureNotesPage').then(m => ({ default: m.LectureNotesPage })))
 
 function TranscriptRedirect() {
   const { lectureId } = useParams<{ lectureId: string }>()
@@ -386,7 +387,9 @@ function App() {
         <ThemeProvider>
           <ToastProvider>
             <NotificationService />
-            <AppRoutes />
+            <Suspense fallback={<div role="status" aria-label="Loading page" className="flex min-h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-accent" /></div>}>
+              <AppRoutes />
+            </Suspense>
           </ToastProvider>
         </ThemeProvider>
       </AuthProvider>

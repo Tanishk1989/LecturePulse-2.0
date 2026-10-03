@@ -11,14 +11,7 @@ import {
   AlertCircle
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-
-interface MarkdownBlock {
-  type: 'heading' | 'list' | 'paragraph' | 'hr'
-  level?: number
-  listType?: 'unordered' | 'ordered'
-  items?: string[]
-  text?: string
-}
+import { parseMarkdown, type MarkdownBlock } from '@/lib/markdownBlocks'
 
 interface MarkdownSection {
   headingBlock: MarkdownBlock | null
@@ -82,107 +75,6 @@ export function renderInlineText(text: string, showCursor?: boolean): React.Reac
   }
 
   return <>{parts}</>
-}
-
-// Parse markdown text into blocks
-function parseMarkdown(text: string): MarkdownBlock[] {
-  const lines = text.split('\n')
-  const blocks: MarkdownBlock[] = []
-  
-  let currentParagraph: string[] = []
-  let currentList: { type: 'unordered' | 'ordered'; items: string[] } | null = null
-
-  const flush = () => {
-    if (currentParagraph.length > 0) {
-      blocks.push({
-        type: 'paragraph',
-        text: currentParagraph.join(' ')
-      })
-      currentParagraph = []
-    }
-    if (currentList) {
-      blocks.push({
-        type: 'list',
-        listType: currentList.type,
-        items: currentList.items
-      })
-      currentList = null
-    }
-  }
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-    const trimmed = line.trim()
-
-    if (!trimmed) {
-      flush()
-      continue
-    }
-
-    // Heading
-    const headingMatch = line.match(/^(#{1,6})\s+(.*)$/)
-    if (headingMatch) {
-      flush()
-      blocks.push({
-        type: 'heading',
-        level: headingMatch[1].length,
-        text: headingMatch[2].trim()
-      })
-      continue
-    }
-
-    // HR
-    if (trimmed === '---' || trimmed === '***') {
-      flush()
-      blocks.push({ type: 'hr' })
-      continue
-    }
-
-    // Unordered list
-    const uListMatch = line.match(/^[\s]*[-*]\s+(.*)$/)
-    if (uListMatch) {
-      if (currentParagraph.length > 0) {
-        flush()
-      }
-      if (currentList && currentList.type === 'unordered') {
-        currentList.items.push(uListMatch[1].trim())
-      } else {
-        flush()
-        currentList = {
-          type: 'unordered',
-          items: [uListMatch[1].trim()]
-        }
-      }
-      continue
-    }
-
-    // Ordered list
-    const oListMatch = line.match(/^[\s]*\d+\.\s+(.*)$/)
-    if (oListMatch) {
-      if (currentParagraph.length > 0) {
-        flush()
-      }
-      if (currentList && currentList.type === 'ordered') {
-        currentList.items.push(oListMatch[1].trim())
-      } else {
-        flush()
-        currentList = {
-          type: 'ordered',
-          items: [oListMatch[1].trim()]
-        }
-      }
-      continue
-    }
-
-    // Regular text
-    if (currentList) {
-      flush()
-    }
-    currentParagraph.push(trimmed)
-  }
-
-  flush()
-  return blocks
 }
 
 // Group blocks into sections by Level 3 headings
@@ -272,6 +164,15 @@ export function MarkdownRenderer({ content, showCursor, className }: MarkdownRen
       }
       case 'hr':
         return <hr key={index} className="border-t-[0.5px] border-white/10 my-4" />
+      case 'quote':
+        return <blockquote key={index} className="my-3 border-l-2 border-accent/60 pl-4 text-foreground/80 whitespace-pre-line">{renderInlineText(block.text ?? '', currentCursor)}</blockquote>
+      case 'code':
+        return <pre key={index} className="my-3 overflow-x-auto rounded-xl bg-foreground/[0.06] p-4 text-xs leading-relaxed"><code>{block.text}</code></pre>
+      case 'table':
+        return <div key={index} className="my-4 max-w-full overflow-x-auto rounded-lg border border-foreground/15"><table className="w-full text-sm text-left">
+          <thead className="bg-foreground/[0.06]"><tr>{block.headers?.map((cell, column) => <th key={column} scope="col" className="px-3 py-2 font-semibold">{renderInlineText(cell)}</th>)}</tr></thead>
+          <tbody>{block.rows?.map((row, rowIndex) => <tr key={rowIndex} className="border-t border-foreground/10">{row.map((cell, column) => <td key={column} className="px-3 py-2 align-top">{renderInlineText(cell)}</td>)}</tr>)}</tbody>
+        </table></div>
       case 'list': {
         const Tag = block.listType === 'ordered' ? 'ol' : 'ul'
         return (

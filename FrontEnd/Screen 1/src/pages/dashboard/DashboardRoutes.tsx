@@ -1,33 +1,34 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
-import { DashboardHomePage } from '@/pages/dashboard/DashboardHomePage'
-import { SmartNotesPage } from '@/pages/dashboard/SmartNotesPage'
-import { FlashcardsPage } from '@/pages/dashboard/FlashcardsPage'
-import { ExamFocusPage } from '@/pages/dashboard/ExamFocusPage'
-import { AITutorPage } from '@/pages/dashboard/AITutorPage'
-import { DashboardPlaceholderPage } from '@/pages/dashboard/DashboardPlaceholderPage'
-import { LecturesPage } from '@/pages/dashboard/LecturesPage'
-import { RecordLivePage } from '@/pages/dashboard/RecordLivePage'
-import { UploadLecturePage } from '@/pages/dashboard/UploadLecturePage'
-import { ImportYouTubePage } from '@/pages/dashboard/ImportYouTubePage'
-import { UploadPdfPage } from '@/pages/dashboard/UploadPdfPage'
-import { SummaryPage } from '@/pages/dashboard/SummaryPage'
-import { ProfilePage } from '@/pages/dashboard/ProfilePage'
-import { SettingsPage } from '@/pages/dashboard/SettingsPage'
-import { HelpPage } from '@/pages/dashboard/HelpPage'
-import { WhatsNewPage } from '@/pages/dashboard/WhatsNewPage'
-import { StreakPage } from '@/pages/dashboard/StreakPage'
-import { ExamCountdownPage } from '@/pages/dashboard/ExamCountdownPage'
-import { SearchPage } from '@/pages/dashboard/SearchPage'
-import { RevisionTimelinePage } from '@/pages/dashboard/RevisionTimelinePage'
-import { QuizPage } from '@/pages/dashboard/QuizPage'
-import { RoadmapPage } from '@/pages/dashboard/RoadmapPage'
-import { TimetablePage } from '@/pages/dashboard/TimetablePage'
-import { InstitutionDashboardPage } from '@/pages/dashboard/InstitutionDashboardPage'
+import { lazy, Suspense } from 'react'
+import { Loader2 } from 'lucide-react'
+const DashboardHomePage = lazy(() => import('./DashboardHomePage').then(m => ({ default: m.DashboardHomePage })))
+const SmartNotesPage = lazy(() => import('./SmartNotesPage').then(m => ({ default: m.SmartNotesPage })))
+const FlashcardsPage = lazy(() => import('./FlashcardsPage').then(m => ({ default: m.FlashcardsPage })))
+const ExamFocusPage = lazy(() => import('./ExamFocusPage').then(m => ({ default: m.ExamFocusPage })))
+const AITutorPage = lazy(() => import('./AITutorPage').then(m => ({ default: m.AITutorPage })))
+const LecturesPage = lazy(() => import('./LecturesPage').then(m => ({ default: m.LecturesPage })))
+const RecordLivePage = lazy(() => import('./RecordLivePage').then(m => ({ default: m.RecordLivePage })))
+const UploadLecturePage = lazy(() => import('./UploadLecturePage').then(m => ({ default: m.UploadLecturePage })))
+const ImportYouTubePage = lazy(() => import('./ImportYouTubePage').then(m => ({ default: m.ImportYouTubePage })))
+const UploadPdfPage = lazy(() => import('./UploadPdfPage').then(m => ({ default: m.UploadPdfPage })))
+const SummaryPage = lazy(() => import('./SummaryPage').then(m => ({ default: m.SummaryPage })))
+const ProfilePage = lazy(() => import('./ProfilePage').then(m => ({ default: m.ProfilePage })))
+const SettingsPage = lazy(() => import('./SettingsPage').then(m => ({ default: m.SettingsPage })))
+const HelpPage = lazy(() => import('./HelpPage').then(m => ({ default: m.HelpPage })))
+const WhatsNewPage = lazy(() => import('./WhatsNewPage').then(m => ({ default: m.WhatsNewPage })))
+const StreakPage = lazy(() => import('./StreakPage').then(m => ({ default: m.StreakPage })))
+const ExamCountdownPage = lazy(() => import('./ExamCountdownPage').then(m => ({ default: m.ExamCountdownPage })))
+const SearchPage = lazy(() => import('./SearchPage').then(m => ({ default: m.SearchPage })))
+const RevisionTimelinePage = lazy(() => import('./RevisionTimelinePage').then(m => ({ default: m.RevisionTimelinePage })))
+const QuizPage = lazy(() => import('./QuizPage').then(m => ({ default: m.QuizPage })))
+const RoadmapPage = lazy(() => import('./RoadmapPage').then(m => ({ default: m.RoadmapPage })))
+const TimetablePage = lazy(() => import('./TimetablePage').then(m => ({ default: m.TimetablePage })))
+const InstitutionDashboardPage = lazy(() => import('./InstitutionDashboardPage').then(m => ({ default: m.InstitutionDashboardPage })))
 
 export function DashboardRoutes() {
   return (
-    <Routes>
+    <Suspense fallback={<div role="status" aria-label="Loading study page" className="flex min-h-[50vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-accent" /></div>}><Routes>
       <Route element={<DashboardLayout />}>
         <Route index element={<DashboardHomePage />} />
         <Route path="lectures" element={<LecturesPage />} />
@@ -54,6 +55,6 @@ export function DashboardRoutes() {
         <Route path="whats-new" element={<WhatsNewPage />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Route>
-    </Routes>
+    </Routes></Suspense>
   )
 }

@@ -4,6 +4,7 @@ import { AuthenticatedRequest, requireAuth } from '../middleware/auth'
 import { deleteFileByUrl, getAccessibleFileUrl, canonicalOwnedFileUrl } from '../config/storage'
 import { isYouTubeUrl } from '../services/youtubeUtils'
 import { triggerLectureProcessing } from '../services/processingService'
+import { aiRequestLimit } from '../middleware/aiRequestLimit'
 import { sendRouteError } from '../utils/apiError'
 import { deriveProcessingStatus, isProcessingStale } from '../utils/processingStatus'
 
@@ -228,7 +229,7 @@ router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respon
 })
 
 // POST /api/lectures/:id/process - Trigger background lecture transcription & notes generation
-router.post('/:id/process', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/process', requireAuth, aiRequestLimit, async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.uid
   const { id } = req.params
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })

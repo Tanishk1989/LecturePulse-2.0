@@ -25,6 +25,7 @@ const TUTOR_SYSTEM_PROMPT_TEMPLATE = `You are an AI tutor helping a student unde
 
 Formatting & Visual Hierarchy:
 - Structure responses beautifully using GitHub-style markdown.
+- Keep every table row, blockquote line, and code-fence delimiter on its own line. Add blank lines before and after tables, lists, blockquotes, and code fences.
 - Use clear sub-headings (###), bold terms for core vocabulary, structured lists, and syntax-highlighted code blocks for programming or formulas.
 - For key definitions or critical formulas, call them out clearly using blockquotes or standard markdown highlights.
 

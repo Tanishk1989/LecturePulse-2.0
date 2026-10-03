@@ -1,6 +1,6 @@
 import { Router, Response } from 'express'
 import { AuthenticatedRequest, requireAuth } from '../middleware/auth'
-import { groqChatCompletion, getGroqClient, getGroqChatModel, enhanceSystemPrompt } from '../services/groq'
+import { groqChatCompletion, getGroqClient, getGroqChatModel, enhanceSystemPrompt, formatGroqError } from '../services/groq'
 import { normalizeOutputLanguage } from '../services/outputLanguage'
 import { prisma } from '../config/db'
 import { transcribeFromUrl } from '../services/transcribeService'
@@ -10,11 +10,12 @@ import { generateStructuredNotes } from '../services/notesGenerator'
 import { sendRouteError } from '../utils/apiError'
 import { canonicalOwnedFileUrl } from '../config/storage'
 import { requireLectureOwner } from '../middleware/lectureOwner'
+import { aiRequestLimit } from '../middleware/aiRequestLimit'
 
 const router = Router()
 
 // POST /api/ai/chat - Proxy chat completion request to Groq SDK
-router.post('/chat', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/chat', requireAuth, aiRequestLimit, async (req: AuthenticatedRequest, res: Response) => {
   const { systemPrompt, userPrompt, temperature, model, outputLanguage } = req.body
 
   if (!systemPrompt || !userPrompt) {
@@ -34,7 +35,7 @@ router.post('/chat', requireAuth, async (req: AuthenticatedRequest, res: Respons
 })
 
 // POST /api/ai/transcribe - Transcribe audio from a public URL (Firebase, etc.)
-router.post('/transcribe', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/transcribe', requireAuth, aiRequestLimit, async (req: AuthenticatedRequest, res: Response) => {
   const { audioUrl, language } = req.body
 
   if (!audioUrl || typeof audioUrl !== 'string') {
@@ -50,7 +51,7 @@ router.post('/transcribe', requireAuth, async (req: AuthenticatedRequest, res: R
 })
 
 // POST /api/ai/transcribe-youtube - Resolve YouTube audio and transcribe
-router.post('/transcribe-youtube', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/transcribe-youtube', requireAuth, aiRequestLimit, async (req: AuthenticatedRequest, res: Response) => {
   const { youtubeUrl, language } = req.body
 
   if (!youtubeUrl || typeof youtubeUrl !== 'string') {
@@ -67,7 +68,7 @@ router.post('/transcribe-youtube', requireAuth, async (req: AuthenticatedRequest
 })
 
 // POST /api/ai/generate-notes - Generate structured notes from transcript text
-router.post('/generate-notes', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/generate-notes', requireAuth, aiRequestLimit, async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.uid
   const { transcript, outputLanguage } = req.body
 
@@ -86,7 +87,7 @@ router.post('/generate-notes', requireAuth, async (req: AuthenticatedRequest, re
 })
 
 // POST /api/ai/extract-pdf - Extract text from a hosted PDF URL
-router.post('/extract-pdf', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/extract-pdf', requireAuth, aiRequestLimit, async (req: AuthenticatedRequest, res: Response) => {
   const { pdfUrl } = req.body
 
   if (!pdfUrl || typeof pdfUrl !== 'string') {
@@ -102,7 +103,7 @@ router.post('/extract-pdf', requireAuth, async (req: AuthenticatedRequest, res: 
 })
 
 // POST /api/ai/stream-chat - Stream chat completion response using Server-Sent Events (SSE)
-router.post('/stream-chat', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/stream-chat', requireAuth, aiRequestLimit, async (req: AuthenticatedRequest, res: Response) => {
   const { systemPrompt, userPrompt, temperature, model, outputLanguage } = req.body
 
   if (!systemPrompt || !userPrompt) {
@@ -114,6 +115,9 @@ router.post('/stream-chat', requireAuth, async (req: AuthenticatedRequest, res: 
   res.setHeader('Cache-Control', 'no-cache')
   res.setHeader('Connection', 'keep-alive')
   res.flushHeaders()
+  const controller = new AbortController()
+  const cancel = () => controller.abort()
+  res.once('close', cancel)
 
   try {
     const groq = getGroqClient()
@@ -130,7 +134,7 @@ router.post('/stream-chat', requireAuth, async (req: AuthenticatedRequest, res: 
         { role: 'user', content: userPrompt },
       ],
       stream: true,
-    })
+    }, { signal: controller.signal })
 
     for await (const chunk of stream) {
       const text = chunk.choices[0]?.delta?.content || ''
@@ -142,9 +146,12 @@ router.post('/stream-chat', requireAuth, async (req: AuthenticatedRequest, res: 
     res.write('data: [DONE]\n\n')
     res.end()
   } catch (error) {
-    console.error('[Streaming Chat] Failed:', error)
-    res.write(`data: ${JSON.stringify({ error: error instanceof Error ? error.message : 'Streaming chat failed.' })}\n\n`)
-    res.end()
+    if (!res.destroyed && !res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ error: formatGroqError(error) })}\n\n`)
+      res.end()
+    }
+  } finally {
+    res.off('close', cancel)
   }
 })
 
@@ -220,7 +227,7 @@ router.post('/rag-retrieve', requireAuth, async (req: AuthenticatedRequest, res:
 })
 
 // POST /api/ai/translate - Translate lecture content
-router.post('/translate', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/translate', requireAuth, aiRequestLimit, async (req: AuthenticatedRequest, res: Response) => {
   const { text, targetLanguage, contextLabel } = req.body
   if (!text || typeof text !== 'string') {
     return res.status(400).json({ error: 'text is required.' })
@@ -239,7 +246,7 @@ router.post('/translate', requireAuth, async (req: AuthenticatedRequest, res: Re
 })
 
 // POST /api/ai/detect-speakers - Label transcript segments by speaker role
-router.post('/detect-speakers', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/detect-speakers', requireAuth, aiRequestLimit, async (req: AuthenticatedRequest, res: Response) => {
   const { segments, subject, useLlm } = req.body
 
   if (!Array.isArray(segments) || segments.length === 0) {
