@@ -2,6 +2,7 @@ import { Router, Response } from 'express'
 import { prisma } from '../config/db'
 import { AuthenticatedRequest, requireAuth } from '../middleware/auth'
 import { sendRouteError } from '../utils/apiError'
+import { requireLectureOwner } from '../middleware/lectureOwner'
 
 const router = Router()
 
@@ -192,7 +193,7 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =>
 })
 
 // POST /api/streaks/session - Record a study session (must be 5+ mins on notes)
-router.post('/session', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/session', requireAuth, requireLectureOwner(), async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.uid
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })
 

@@ -2,6 +2,7 @@ import { Router, Response } from 'express'
 import { prisma } from '../config/db'
 import { AuthenticatedRequest, requireAuth } from '../middleware/auth'
 import { sendRouteError } from '../utils/apiError'
+import { requireLectureOwner } from '../middleware/lectureOwner'
 
 const router = Router()
 
@@ -12,7 +13,7 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =>
 
   try {
     const notes = await prisma.lectureNote.findMany({
-      where: { userId },
+      where: { userId, lecture: { userId } },
       orderBy: { updatedAt: 'desc' },
     })
     res.json(notes)
@@ -29,7 +30,7 @@ router.get('/lecture/:lectureId', requireAuth, async (req: AuthenticatedRequest,
 
   try {
     const note = await prisma.lectureNote.findFirst({
-      where: { lectureId, userId },
+      where: { lectureId, userId, lecture: { userId } },
     })
 
     if (!note) {
@@ -43,7 +44,7 @@ router.get('/lecture/:lectureId', requireAuth, async (req: AuthenticatedRequest,
 })
 
 // POST /api/notes - Create or update study notes manually
-router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/', requireAuth, requireLectureOwner(), async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.uid
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })
 
@@ -121,7 +122,7 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
 
   try {
     const existing = await prisma.lectureNote.findFirst({
-      where: { id, userId },
+      where: { id, userId, lecture: { userId } },
     })
 
     if (!existing) {

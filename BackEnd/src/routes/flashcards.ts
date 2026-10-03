@@ -2,6 +2,7 @@ import { Router, Response } from 'express'
 import { prisma } from '../config/db'
 import { AuthenticatedRequest, requireAuth } from '../middleware/auth'
 import { sendRouteError } from '../utils/apiError'
+import { requireLectureOwner } from '../middleware/lectureOwner'
 import { resolveConceptIdForFlashcard } from '../services/conceptExtractor'
 
 const router = Router()
@@ -17,6 +18,7 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =>
     const flashcards = await prisma.flashcard.findMany({
       where: {
         userId,
+        lecture: { userId },
         lectureId: lectureId ? String(lectureId) : undefined,
       },
       orderBy: { createdAt: 'asc' },
@@ -35,7 +37,7 @@ router.get('/lecture/:lectureId', requireAuth, async (req: AuthenticatedRequest,
 
   try {
     const flashcards = await prisma.flashcard.findMany({
-      where: { lectureId, userId },
+      where: { lectureId, userId, lecture: { userId } },
       orderBy: { createdAt: 'asc' },
     })
     res.json(flashcards)
@@ -45,7 +47,7 @@ router.get('/lecture/:lectureId', requireAuth, async (req: AuthenticatedRequest,
 })
 
 // POST /api/flashcards/batch - Save a batch of generated flashcards
-router.post('/batch', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/batch', requireAuth, requireLectureOwner(), async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.uid
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })
 
@@ -56,12 +58,22 @@ router.post('/batch', requireAuth, async (req: AuthenticatedRequest, res: Respon
   }
 
   try {
+    if (cards.some(card => !card || typeof card.front !== 'string' || typeof card.back !== 'string' ||
+      (card.conceptId != null && typeof card.conceptId !== 'string') ||
+      (card.concept != null && typeof card.concept !== 'string'))) {
+      return res.status(400).json({ error: 'Invalid flashcard fields.' })
+    }
+    const conceptIds = [...new Set<string>(cards.map(card => card.conceptId).filter(Boolean))]
+    if (conceptIds.length) {
+      const ownedCount = await prisma.kgConcept.count({ where: { id: { in: conceptIds }, userId, lectureId } })
+      if (ownedCount !== conceptIds.length) return res.status(404).json({ error: 'Concept not found.' })
+    }
     const dataToInsert = await Promise.all(
       cards.map(async (card: { front: string; back: string; concept?: string | null; conceptId?: string | null }) => {
         const conceptName = card.concept?.trim() || null
         const conceptId =
           card.conceptId ||
-          (conceptName ? await resolveConceptIdForFlashcard(lectureId, conceptName) : null)
+          (conceptName ? await resolveConceptIdForFlashcard(lectureId, conceptName, userId) : null)
 
         return {
           lectureId,
@@ -97,7 +109,7 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
 
   try {
     const existing = await prisma.flashcard.findFirst({
-      where: { id, userId },
+      where: { id, userId, lecture: { userId } },
     })
 
     if (!existing) {
@@ -135,7 +147,7 @@ router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respon
 
   try {
     const existing = await prisma.flashcard.findFirst({
-      where: { id, userId },
+      where: { id, userId, lecture: { userId } },
     })
 
     if (!existing) {

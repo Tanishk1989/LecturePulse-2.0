@@ -12,6 +12,7 @@
     "test:audio": "npm run build && node --test scripts/test-wav-audio.mjs",
     "test:rag": "npm run build && node --test scripts/test-rag-retrieval.mjs",
     "test:security": "npm run build && node --test scripts/test-security.mjs",
+    "test:access": "npm run build && node --test scripts/test-access-control.mjs",
     "test:media": "npm run build && node --test scripts/test-wav-audio.mjs scripts/test-storage-paths.mjs scripts/test-youtube-paths.mjs",
     "start": "node dist/index.js",
     "postinstall": "prisma generate && node scripts/install-media-tools.mjs",

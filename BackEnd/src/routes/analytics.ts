@@ -7,6 +7,10 @@ const router = Router()
 
 // GET /api/analytics/institution — anonymized cross-user learning analytics
 router.get('/institution', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  // Server-issued Firebase claim only; never infer admin privileges from a request body/profile.
+  if (req.user?.institutionAnalyticsAdmin !== true) {
+    return res.status(403).json({ error: 'Institution analytics requires administrator access.' })
+  }
   try {
     const [
       totalStudents,

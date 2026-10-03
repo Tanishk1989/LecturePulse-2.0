@@ -167,12 +167,14 @@ export async function extractAndStoreConcepts(
 export async function resolveConceptIdForFlashcard(
   lectureId: string,
   conceptName: string | null | undefined,
+  userId: string,
 ): Promise<string | null> {
   if (!conceptName?.trim()) return null
 
   const concept = await prisma.kgConcept.findFirst({
     where: {
       lectureId,
+      userId,
       name: { equals: conceptName.trim(), mode: 'insensitive' },
     },
     select: { id: true },

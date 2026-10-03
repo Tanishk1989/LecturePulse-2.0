@@ -9,6 +9,7 @@ import { extractPdfTextFromUrl } from '../services/processingService'
 import { generateStructuredNotes } from '../services/notesGenerator'
 import { sendRouteError } from '../utils/apiError'
 import { canonicalOwnedFileUrl } from '../config/storage'
+import { requireLectureOwner } from '../middleware/lectureOwner'
 
 const router = Router()
 
@@ -148,7 +149,7 @@ router.post('/stream-chat', requireAuth, async (req: AuthenticatedRequest, res: 
 })
 
 // POST /api/ai/feedback - Save user feedback on generated content
-router.post('/feedback', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/feedback', requireAuth, requireLectureOwner(), async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.uid
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })
 
@@ -175,11 +176,15 @@ router.post('/feedback', requireAuth, async (req: AuthenticatedRequest, res: Res
   }
 })
 
-// GET /api/ai/feedback - Retrieve all user feedback logs (admin/analytics query)
+// GET /api/ai/feedback - Retrieve only the authenticated user's feedback
 router.get('/feedback', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user?.uid
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
   try {
     const records = await prisma.aiFeedback.findMany({
+      where: { userId },
       orderBy: { createdAt: 'desc' },
+      take: 200,
     })
     res.json(records)
   } catch (error) {

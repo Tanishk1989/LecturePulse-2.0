@@ -3,6 +3,7 @@ import crypto from 'crypto'
 import { prisma } from '../config/db'
 import { AuthenticatedRequest, requireAuth } from '../middleware/auth'
 import { sendRouteError } from '../utils/apiError'
+import { isShareExpired } from '../utils/shareAccess'
 
 const router = Router()
 
@@ -35,7 +36,7 @@ router.post('/lecture/:lectureId', requireAuth, async (req: AuthenticatedRequest
   try {
     const lecture = await prisma.lecture.findFirst({
       where: { id: lectureId, userId },
-      include: { lectureNotes: { where: { status: 'completed' }, take: 1 } },
+      include: { lectureNotes: { where: { status: 'completed', userId }, take: 1 } },
     })
 
     if (!lecture) {
@@ -51,7 +52,7 @@ router.post('/lecture/:lectureId', requireAuth, async (req: AuthenticatedRequest
       orderBy: { createdAt: 'desc' },
     })
 
-    if (existing) {
+    if (existing && !isShareExpired(existing.expiresAt)) {
       return res.json({
         shareToken: existing.shareToken,
         shareUrl: `/shared/${existing.shareToken}`,
@@ -90,10 +91,10 @@ router.get('/:token', async (req, res: Response) => {
         lecture: {
           select: {
             title: true,
+            userId: true,
             subject: true,
             lectureNotes: {
               where: { status: 'completed' },
-              take: 1,
             },
           },
         },
@@ -104,11 +105,12 @@ router.get('/:token', async (req, res: Response) => {
       return res.status(404).json({ error: 'Share link not found or expired.' })
     }
 
-    if (share.expiresAt && share.expiresAt.getTime() < Date.now()) {
+    if (isShareExpired(share.expiresAt)) {
       return res.status(410).json({ error: 'This share link has expired.' })
     }
 
-    const note = share.lecture.lectureNotes[0]
+    const note = share.lecture.userId === share.userId
+      ? share.lecture.lectureNotes.find(note => note.userId === share.userId) : undefined
     if (!note) {
       return res.status(404).json({ error: 'Shared notes are not available.' })
     }
@@ -143,7 +145,8 @@ router.post('/:token/merge', requireAuth, async (req: AuthenticatedRequest, res:
         lecture: {
           select: {
             title: true,
-            lectureNotes: { where: { status: 'completed' }, take: 1 },
+            userId: true,
+            lectureNotes: { where: { status: 'completed' } },
           },
         },
       },
@@ -153,7 +156,11 @@ router.post('/:token/merge', requireAuth, async (req: AuthenticatedRequest, res:
       return res.status(404).json({ error: 'Share link not found or merge is disabled.' })
     }
 
-    const sharedNote = share.lecture.lectureNotes[0]
+    if (isShareExpired(share.expiresAt)) {
+      return res.status(410).json({ error: 'This share link has expired.' })
+    }
+    const sharedNote = share.lecture.userId === share.userId
+      ? share.lecture.lectureNotes.find(note => note.userId === share.userId) : undefined
     if (!sharedNote) {
       return res.status(404).json({ error: 'Shared notes are not available.' })
     }

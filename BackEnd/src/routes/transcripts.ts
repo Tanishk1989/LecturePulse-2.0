@@ -2,6 +2,7 @@ import { Router, Response } from 'express'
 import { prisma } from '../config/db'
 import { AuthenticatedRequest, requireAuth } from '../middleware/auth'
 import { sendRouteError } from '../utils/apiError'
+import { requireLectureOwner } from '../middleware/lectureOwner'
 
 const router = Router()
 
@@ -12,7 +13,7 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =>
 
   try {
     const transcripts = await prisma.transcript.findMany({
-      where: { userId },
+      where: { userId, lecture: { userId } },
       select: { lectureId: true, fullText: true },
     })
     res.json(transcripts)
@@ -29,7 +30,7 @@ router.get('/lecture/:lectureId', requireAuth, async (req: AuthenticatedRequest,
 
   try {
     const transcript = await prisma.transcript.findFirst({
-      where: { lectureId, userId },
+      where: { lectureId, userId, lecture: { userId } },
     })
 
     if (!transcript) {
@@ -43,7 +44,7 @@ router.get('/lecture/:lectureId', requireAuth, async (req: AuthenticatedRequest,
 })
 
 // PUT /api/transcripts - Save or update transcript metadata manually
-router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/', requireAuth, requireLectureOwner(), async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.uid
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })
 
@@ -93,7 +94,7 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
 })
 
 // PATCH /api/transcripts/lecture/:lectureId - Update transcript by lectureId
-router.patch('/lecture/:lectureId', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.patch('/lecture/:lectureId', requireAuth, requireLectureOwner('params'), async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.uid
   const { lectureId } = req.params
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })

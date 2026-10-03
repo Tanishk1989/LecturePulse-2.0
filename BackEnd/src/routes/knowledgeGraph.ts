@@ -2,6 +2,7 @@ import { Router, Response } from 'express'
 import { prisma } from '../config/db'
 import { AuthenticatedRequest, requireAuth } from '../middleware/auth'
 import { sendRouteError } from '../utils/apiError'
+import { requireLectureOwner } from '../middleware/lectureOwner'
 import { extractAndStoreConcepts } from '../services/conceptExtractor'
 import { getRelatedLectureIds } from '../services/crossLectureService'
 
@@ -185,7 +186,7 @@ router.post('/extract/:lectureId', requireAuth, async (req: AuthenticatedRequest
 })
 
 // POST /api/knowledge-graph/quiz-attempts - Record a concept quiz answer
-router.post('/quiz-attempts', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/quiz-attempts', requireAuth, requireLectureOwner(), async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.uid
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })
 
@@ -241,7 +242,7 @@ router.get('/lecture-quiz-attempts/:lectureId', requireAuth, async (req: Authent
 })
 
 // POST /api/knowledge-graph/lecture-quiz-attempts
-router.post('/lecture-quiz-attempts', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/lecture-quiz-attempts', requireAuth, requireLectureOwner(), async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.uid
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })
 
