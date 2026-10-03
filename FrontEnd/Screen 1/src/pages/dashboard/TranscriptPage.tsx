@@ -46,7 +46,7 @@ import { TranslateContentButton } from '@/components/shared/TranslateContentButt
 
 function cleanLectureTitle(title: string): string {
   let clean = title.replace(/\.(mp3|wav|m4a|webm|mp4|pdf)$/i, '')
-  clean = clean.replace(/^[🎙📄]\s*/, '')
+  clean = clean.replace(/^[🎙📄]\uFE0F?\s*/u, '')
   if (/^recording-\d+$/i.test(clean)) {
     const timestamp = parseInt(clean.replace(/recording-/i, ''))
     if (!isNaN(timestamp)) {
@@ -373,6 +373,8 @@ export function TranscriptPage() {
                   <button
                     type="button"
                     onClick={handleToggleFavorite}
+                    aria-label={lecture.favorite ? 'Remove from favorites' : 'Add to favorites'}
+                    aria-pressed={lecture.favorite}
                     className={cn(
                       'flex h-9 w-9 items-center justify-center rounded-full border border-white/[0.06] bg-white/[0.03] text-muted transition-colors cursor-pointer hover:bg-white/[0.08] hover:text-foreground',
                       lecture.favorite && 'text-accent border-accent/20 bg-accent/[0.04] hover:text-accent-soft',
@@ -384,6 +386,8 @@ export function TranscriptPage() {
                     <button
                       type="button"
                       onClick={() => setMoreMenuOpen(!moreMenuOpen)}
+                      aria-label="Lecture actions"
+                      aria-expanded={moreMenuOpen}
                       className="flex h-9 w-9 items-center justify-center rounded-full border border-white/[0.06] bg-white/[0.03] text-muted transition-colors cursor-pointer hover:bg-white/[0.08] hover:text-foreground"
                     >
                       <MoreHorizontal className="h-4.5 w-4.5" />
@@ -423,6 +427,7 @@ export function TranscriptPage() {
               <button
                 type="button"
                 onClick={() => playerRef.current?.togglePlay()}
+                aria-label={isPlaying ? 'Pause audio' : 'Play audio'}
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-background transition-transform hover:scale-105 active:scale-95 cursor-pointer"
               >
                 {isPlaying ? (

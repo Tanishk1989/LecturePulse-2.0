@@ -22,6 +22,7 @@ import { ensureUploadDirs, initializeStorage, storageMode, UPLOADS_ROOT } from '
 import { prisma } from './config/db'
 import { resolveApiError } from './utils/apiError'
 import { isFfmpegAvailable } from './services/audioConvertService'
+import { isBundledYouTubeDownloaderAvailable } from './services/youtubeService'
 
 ensureUploadDirs()
 
@@ -60,7 +61,7 @@ app.get('/', (_req, res) => {
 })
 
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'healthy', storage: storageMode(), audioConversion: audioConversionAvailable, revision: process.env.RENDER_GIT_COMMIT?.slice(0, 7), timestamp: new Date().toISOString() })
+  res.json({ status: 'healthy', storage: storageMode(), audioConversion: audioConversionAvailable, youtubeDownloader: isBundledYouTubeDownloaderAvailable(), revision: process.env.RENDER_GIT_COMMIT?.slice(0, 7), timestamp: new Date().toISOString() })
 })
 
 app.get('/api/health/db', async (_req, res) => {

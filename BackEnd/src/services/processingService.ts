@@ -48,7 +48,7 @@ function getExcerpt(text: string, maxWords = 800): string {
 }
 
 function isDefaultOrTemporaryTitle(title: string): boolean {
-  const clean = title.replace(/^[🎙📄]\s*/, '').trim()
+  const clean = title.replace(/^[🎙📄]\uFE0F?\s*/u, '').trim()
   if (clean === 'Live Recording' || clean === 'Uploaded Lecture' || clean === 'Lecture') {
     return true
   }
@@ -65,7 +65,7 @@ function isDefaultOrTemporaryTitle(title: string): boolean {
 }
 
 function getCleanedFallbackTitle(currentTitle: string): string {
-  const noEmoji = currentTitle.replace(/^[\u2300-\u27BF\uD83C-\uD83D\uD83E\uDD00-\uDDF0\uD83F]\s*/g, '')
+  const noEmoji = currentTitle.replace(/^\p{Extended_Pictographic}\uFE0F?\s*/u, '')
   let base = noEmoji.replace(/[_-]+/g, ' ').trim()
   return base
     .split(/\s+/)

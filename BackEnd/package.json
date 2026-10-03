@@ -8,8 +8,9 @@
     "build": "prisma generate && tsc",
     "test:storage": "npm run build && node --test scripts/test-storage-paths.mjs",
     "test:audio": "npm run build && node --test scripts/test-wav-audio.mjs",
+    "test:media": "npm run build && node --test scripts/test-wav-audio.mjs scripts/test-storage-paths.mjs scripts/test-youtube-paths.mjs",
     "start": "node dist/index.js",
-    "postinstall": "prisma generate",
+    "postinstall": "prisma generate && node scripts/install-media-tools.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"
   },

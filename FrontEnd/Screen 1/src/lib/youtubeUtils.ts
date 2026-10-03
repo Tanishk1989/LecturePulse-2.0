@@ -7,26 +7,28 @@ export interface YouTubeVideoMetadata {
 }
 
 export function parseYouTubeVideoId(input: string): string | null {
+  const validId = (value: string | null) => value && /^[A-Za-z0-9_-]{11}$/.test(value) ? value : null
   const trimmed = input.trim()
   if (!trimmed) return null
 
   try {
     const parsed = new URL(trimmed)
+    if (!['https:', 'http:'].includes(parsed.protocol) || parsed.username || parsed.password || parsed.port) return null
     const host = parsed.hostname.replace(/^www\./, '')
 
     if (host === 'youtu.be') {
-      return parsed.pathname.slice(1).split('/')[0] || null
+      return validId(parsed.pathname.slice(1).split('/')[0])
     }
 
     if (host === 'youtube.com' || host === 'm.youtube.com') {
       if (parsed.pathname === '/watch') {
-        return parsed.searchParams.get('v')
+        return validId(parsed.searchParams.get('v'))
       }
       if (parsed.pathname.startsWith('/embed/')) {
-        return parsed.pathname.split('/')[2] || null
+        return validId(parsed.pathname.split('/')[2])
       }
       if (parsed.pathname.startsWith('/shorts/')) {
-        return parsed.pathname.split('/')[2] || null
+        return validId(parsed.pathname.split('/')[2])
       }
     }
   } catch {

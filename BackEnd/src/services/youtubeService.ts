@@ -1,27 +1,37 @@
 import { execFile, execSync } from 'child_process'
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'fs'
 import path from 'path'
 import { promisify } from 'util'
 import { Innertube } from 'youtubei.js'
 import { parseYouTubeVideoId } from './youtubeUtils'
-import { LECTURES_CATEGORY, getAbsolutePath, buildFileUrl, storeFile } from '../config/storage'
-import { convertBufferToMonoWav, isFfmpegAvailable, discoverFfmpegCommand } from './audioConvertService'
+import { LECTURES_CATEGORY, MAX_UPLOAD_BYTES, getAbsolutePath, buildFileUrl, storeFile } from '../config/storage'
 
 const execFileAsync = promisify(execFile)
 
 const YT_DLP_ARGS = ['--js-runtimes', 'node', '--remote-components', 'ejs:github']
 
-type YtDlpRunner = { command: string; prefix: string[] }
+type YtDlpRunner = { command: string; prefix: string[]; env?: NodeJS.ProcessEnv }
+
+const bundledPython = path.join(process.cwd(), '.runtime', 'python')
+export function isBundledYouTubeDownloaderAvailable(): boolean {
+  return existsSync(path.join(bundledPython, 'yt_dlp', '__main__.py'))
+}
 
 function discoverYtDlpRunners(): YtDlpRunner[] {
   const runners: YtDlpRunner[] = []
   const seen = new Set<string>()
 
-  const addRunner = (command: string, prefix: string[] = []) => {
+  const addRunner = (command: string, prefix: string[] = [], env?: NodeJS.ProcessEnv) => {
     const key = `${command}|${prefix.join(' ')}`
     if (seen.has(key)) return
     seen.add(key)
-    runners.push({ command, prefix })
+    runners.push({ command, prefix, env })
+  }
+
+  if (isBundledYouTubeDownloaderAvailable()) {
+    addRunner(process.env.PYTHON_PATH || 'python3', ['-m', 'yt_dlp'], {
+      ...process.env, PYTHONPATH: [bundledPython, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter),
+    })
   }
 
   if (process.env.YT_DLP_PATH) {
@@ -32,7 +42,7 @@ function discoverYtDlpRunners(): YtDlpRunner[] {
   addRunner('python', ['-m', 'yt_dlp'])
   addRunner('python3', ['-m', 'yt_dlp'])
 
-  try {
+  if (process.platform === 'win32') try {
     const pythonPath = execSync('where python', { encoding: 'utf8', windowsHide: true })
       .split(/\r?\n/)
       .map((line) => line.trim())
@@ -80,7 +90,7 @@ async function resolveViaYtDlp(videoId: string): Promise<string | null> {
           ...YT_DLP_ARGS,
           watchUrl,
         ],
-        { timeout: 90_000, windowsHide: true, maxBuffer: 10 * 1024 * 1024 },
+        { timeout: 90_000, windowsHide: true, maxBuffer: 10 * 1024 * 1024, env: runner.env },
       )
 
       const audioUrl = stdout
@@ -147,12 +157,13 @@ export async function resolveYouTubeTranscriptionUrl(youtubeUrl: string): Promis
 }
 
 export async function downloadYouTubeAudio(youtubeUrl: string, lectureId: string, userId: string): Promise<string> {
-  // Reuse already-downloaded audio (supports legacy .webm and new .wav paths).
-  for (const ext of ['wav', 'webm', 'm4a', 'mp3']) {
+  // Preserve compressed audio in durable storage; expand to PCM only while transcribing.
+  const mimeTypes: Record<string, string> = { m4a: 'audio/mp4', webm: 'audio/webm', mp3: 'audio/mpeg', wav: 'audio/wav' }
+  for (const ext of ['m4a', 'webm', 'mp3', 'wav']) {
     const relativePath = `${userId}/${lectureId}.${ext}`
     const absolutePath = getAbsolutePath(LECTURES_CATEGORY, relativePath)
-    if (existsSync(absolutePath)) {
-      await storeFile(LECTURES_CATEGORY, relativePath, absolutePath, ext === 'wav' ? 'audio/wav' : 'audio/webm')
+    if (existsSync(absolutePath) && statSync(absolutePath).size > 0 && statSync(absolutePath).size <= MAX_UPLOAD_BYTES) {
+      await storeFile(LECTURES_CATEGORY, relativePath, absolutePath, mimeTypes[ext])
       return buildFileUrl(LECTURES_CATEGORY, relativePath)
     }
   }
@@ -162,97 +173,80 @@ export async function downloadYouTubeAudio(youtubeUrl: string, lectureId: string
     throw new Error('Invalid YouTube URL.')
   }
 
-  const useWavOutput = isFfmpegAvailable()
-  const relativePath = useWavOutput ? `${userId}/${lectureId}.wav` : `${userId}/${lectureId}.webm`
-  const absolutePath = getAbsolutePath(LECTURES_CATEGORY, relativePath)
-
-  mkdirSync(path.dirname(absolutePath), { recursive: true })
+  const outputTemplate = getAbsolutePath(LECTURES_CATEGORY, `${userId}/${lectureId}.%(ext)s`)
+  mkdirSync(path.dirname(outputTemplate), { recursive: true })
 
   const watchUrl = `https://www.youtube.com/watch?v=${videoId}`
-  let downloaded = false
-  let lastError: any = null
-
-  const downloadArgs = useWavOutput
-    ? [
-        '-f',
-        'bestaudio/best',
-        '-x',
-        '--audio-format',
-        'wav',
-        '--postprocessor-args',
-        'ffmpeg:-ar 16000 -ac 1',
-        '--ffmpeg-location',
-        discoverFfmpegCommand()!,
-        '-o',
-        absolutePath,
-        ...YT_DLP_ARGS,
-        watchUrl,
-      ]
-    : [
-        '-f',
-        'bestaudio[filesize<24M]/bestaudio/best',
-        '-o',
-        absolutePath,
-        ...YT_DLP_ARGS,
-        watchUrl,
-      ]
+  let savedPath: string | null = null
+  let lastError: unknown = null
+  const downloadArgs = ['--no-playlist', '--no-part', '--socket-timeout', '20', '--retries', '1',
+    '--max-filesize', String(MAX_UPLOAD_BYTES), '-f', 'bestaudio[ext=m4a]/bestaudio[ext=webm]',
+    '-o', outputTemplate, ...YT_DLP_ARGS, watchUrl]
 
   for (const runner of discoverYtDlpRunners()) {
     try {
       await execFileAsync(
         runner.command,
         [...runner.prefix, ...downloadArgs],
-        { timeout: 180_000, windowsHide: true, maxBuffer: 10 * 1024 * 1024 },
+        { timeout: 180_000, windowsHide: true, maxBuffer: 10 * 1024 * 1024, env: runner.env },
       )
-      if (existsSync(absolutePath)) {
-        downloaded = true
-        break
+      for (const ext of ['m4a', 'webm']) {
+        const relative = `${userId}/${lectureId}.${ext}`
+        const absolute = getAbsolutePath(LECTURES_CATEGORY, relative)
+        if (existsSync(absolute)) {
+          const size = statSync(absolute).size
+          if (size > 0 && size <= MAX_UPLOAD_BYTES) savedPath = relative
+          else unlinkSync(absolute)
+        }
       }
+      if (savedPath) break
     } catch (err) {
       lastError = err
-      // try next runner
-    }
-  }
-
-  if (!downloaded && useWavOutput) {
-    const webmPath = absolutePath.replace(/\.wav$/, '.webm')
-    if (existsSync(webmPath)) {
-      try {
-        const wavBuffer = await convertBufferToMonoWav(readFileSync(webmPath), 'webm')
-        writeFileSync(absolutePath, wavBuffer)
-        downloaded = true
-      } catch (convertErr) {
-        lastError = convertErr
+      // An interrupted download must never be reused as a complete file.
+      for (const ext of ['m4a', 'webm']) {
+        try { unlinkSync(getAbsolutePath(LECTURES_CATEGORY, `${userId}/${lectureId}.${ext}`)) } catch {}
       }
     }
   }
 
-  if (!downloaded) {
+  if (!savedPath) {
     // Attempt fallback with Innertube and fetching
     try {
       const directUrl = await resolveViaInnertube(videoId)
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 120_000)
-      const response = await fetch(directUrl, { signal: controller.signal })
-      clearTimeout(timeoutId)
-      if (!response.ok) {
-        throw new Error(`Failed to fetch YouTube audio stream (${response.status})`)
+      const parsedUrl = new URL(directUrl)
+      if (parsedUrl.protocol !== 'https:' || !parsedUrl.hostname.endsWith('.googlevideo.com')) {
+        clearTimeout(timeoutId)
+        throw new Error('Unexpected YouTube media origin.')
       }
-      const rawBuffer = Buffer.from(await response.arrayBuffer())
       try {
-        const wavBuffer = await convertBufferToMonoWav(rawBuffer, 'webm')
-        writeFileSync(absolutePath, wavBuffer)
-      } catch {
-        writeFileSync(absolutePath, rawBuffer)
+        const response = await fetch(directUrl, { signal: controller.signal, redirect: 'error' })
+        if (!response.ok || !response.body) throw new Error(`YouTube media request failed (${response.status}).`)
+        const buffers: Buffer[] = []
+        let bytes = 0
+        for await (const part of response.body) {
+          bytes += part.length
+          if (bytes > MAX_UPLOAD_BYTES) { controller.abort(); throw new Error('YouTube audio exceeds the 48 MB storage limit.') }
+          buffers.push(Buffer.from(part))
+        }
+        if (!bytes) throw new Error('YouTube returned an empty audio stream.')
+        const ext = response.headers.get('content-type')?.includes('mp4') ? 'm4a' : 'webm'
+        savedPath = `${userId}/${lectureId}.${ext}`
+        writeFileSync(getAbsolutePath(LECTURES_CATEGORY, savedPath), Buffer.concat(buffers))
+      } finally {
+        clearTimeout(timeoutId)
       }
-      downloaded = true
     } catch (fallbackError) {
-      throw new Error(
-        `Failed to download YouTube audio. yt-dlp download failed: ${lastError?.message || lastError}. Fallback failed: ${fallbackError}`,
-      )
+      const details = [lastError, fallbackError].map(error => error instanceof Error ? error.message : String(error)).join(' ')
+      console.error('[YouTube] Import failed', { blocked: /403|not a bot|sign in/i.test(details), downloaderMissing: /No module named|ENOENT/i.test(details) })
+      throw new Error(/403|not a bot|sign in/i.test(details)
+        ? 'YouTube is blocking this server from accessing the video. Upload an audio file you are authorized to use instead.'
+        : 'YouTube audio could not be downloaded. Check that the video is public and below the 48 MB audio limit.')
     }
   }
 
-  await storeFile(LECTURES_CATEGORY, relativePath, absolutePath, useWavOutput ? 'audio/wav' : 'audio/webm')
-  return buildFileUrl(LECTURES_CATEGORY, relativePath)
+  const ext = savedPath.split('.').pop()!
+  await storeFile(LECTURES_CATEGORY, savedPath, getAbsolutePath(LECTURES_CATEGORY, savedPath), mimeTypes[ext])
+  return buildFileUrl(LECTURES_CATEGORY, savedPath)
 }

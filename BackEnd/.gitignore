@@ -1,6 +1,7 @@
 uploads/
 node_modules/
 dist/
+.runtime/
 .env
 .env.*
 !.env.example
