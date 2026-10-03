@@ -2,7 +2,7 @@ import { Router, Response } from 'express'
 import multer from 'multer'
 import * as fs from 'fs'
 import * as path from 'path'
-import { randomUUID } from 'crypto'
+import { createIncomingUpload } from '../middleware/multipartUpload'
 import { AuthenticatedRequest, requireAuth } from '../middleware/auth'
 import {
   AVATARS_CATEGORY,
@@ -29,13 +29,7 @@ const incomingDir = path.join(UPLOADS_ROOT, '_incoming')
 fs.mkdirSync(incomingDir, { recursive: true })
 const maxUploadBytes = MAX_UPLOAD_BYTES
 
-const upload = multer({
-  storage: multer.diskStorage({
-    destination: incomingDir,
-    filename: (_req, _file, callback) => callback(null, randomUUID()),
-  }),
-  limits: { fileSize: maxUploadBytes },
-})
+const upload = createIncomingUpload(incomingDir, maxUploadBytes)
 
 router.post('/', requireAuth, (req, res, next) => {
   upload.single('file')(req, res, (error: unknown) => {

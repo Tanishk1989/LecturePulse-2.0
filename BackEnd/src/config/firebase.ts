@@ -1,8 +1,9 @@
-import * as admin from 'firebase-admin'
+import { applicationDefault, cert, getApps, initializeApp, type Credential, type ServiceAccount } from 'firebase-admin/app'
+import { getAuth } from 'firebase-admin/auth'
 import * as path from 'path'
 import * as fs from 'fs'
 
-function getCredential(): admin.ServiceAccount | admin.credential.Credential {
+function getCredential(): ServiceAccount | Credential {
   const envJson =
     process.env.FIREBASE_SERVICE_ACCOUNT_KEY ||
     process.env.FIREBASE_SERVICE_ACCOUNT ||
@@ -10,9 +11,9 @@ function getCredential(): admin.ServiceAccount | admin.credential.Credential {
 
   if (envJson) {
     try {
-      return JSON.parse(envJson) as admin.ServiceAccount
-    } catch (e) {
-      console.error('Failed to parse Firebase service account JSON from environment:', e)
+      return JSON.parse(envJson) as ServiceAccount
+    } catch {
+      console.error('Failed to parse Firebase service account JSON from environment.')
     }
   }
 
@@ -21,28 +22,28 @@ function getCredential(): admin.ServiceAccount | admin.credential.Credential {
     path.join(process.cwd(), 'firebase-service-account.json')
   if (fs.existsSync(filePath)) {
     try {
-      return JSON.parse(fs.readFileSync(filePath, 'utf8')) as admin.ServiceAccount
-    } catch (e) {
-      console.error('Failed to parse Firebase credential file at path:', filePath, e)
+      return JSON.parse(fs.readFileSync(filePath, 'utf8')) as ServiceAccount
+    } catch {
+      console.error('Failed to parse Firebase credential file.')
     }
   }
 
   console.warn('No service account credentials found. Falling back to applicationDefault credentials.')
-  return admin.credential.applicationDefault()
+  return applicationDefault()
 }
 
 const credential = getCredential()
 
-if (admin.apps.length === 0) {
+if (getApps().length === 0) {
   const isServiceAccount =
     typeof credential === 'object' &&
     credential !== null &&
     ('project_id' in credential || 'projectId' in credential)
-  admin.initializeApp({
+  initializeApp({
     credential: isServiceAccount
-      ? admin.credential.cert(credential as admin.ServiceAccount)
-      : (credential as admin.credential.Credential),
+      ? cert(credential as ServiceAccount)
+      : (credential as Credential),
   })
 }
 
-export { admin }
+export const firebaseAuth = getAuth()

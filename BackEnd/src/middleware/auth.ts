@@ -1,8 +1,9 @@
 import { Request, Response, NextFunction } from 'express'
-import { admin } from '../config/firebase'
+import type { DecodedIdToken } from 'firebase-admin/auth'
+import { firebaseAuth } from '../config/firebase'
 
 export interface AuthenticatedRequest extends Request {
-  user?: admin.auth.DecodedIdToken
+  user?: DecodedIdToken
 }
 
 export async function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunction) {
@@ -13,11 +14,11 @@ export async function requireAuth(req: AuthenticatedRequest, res: Response, next
 
   const token = authHeader.split('Bearer ')[1]
   try {
-    const decodedToken = await admin.auth().verifyIdToken(token)
+    const decodedToken = await firebaseAuth.verifyIdToken(token)
     req.user = decodedToken
     next()
-  } catch (error) {
-    console.error('Auth verification failed:', error)
+  } catch {
+    console.warn('Auth verification failed; session rejected.')
     return res.status(401).json({ error: 'Invalid or expired authentication session.' })
   }
 }
