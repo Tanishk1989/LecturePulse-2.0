@@ -8,6 +8,7 @@ import { readFileBufferFromUrl } from '../config/storage'
 import { groqChatCompletion, formatGroqError } from './groq'
 import { normalizeOutputLanguage } from './outputLanguage'
 import pdfParse from 'pdf-parse'
+import { fetchYouTubeTranscript, isYouTubeTranscriptProviderConfigured } from './youtubeTranscriptService'
 
 export interface ProcessLectureOptions {
   generateNotes?: boolean
@@ -189,6 +190,12 @@ export async function triggerLectureProcessing(
           const pdfResult = await extractPdfTextFromUrl(lecture.fileUrl)
           extractedText = pdfResult.text
           durationSeconds = pdfResult.pageCount || 0
+        } else if (isYouTubeUrl(lecture.fileUrl) && isYouTubeTranscriptProviderConfigured()) {
+          const result = await fetchYouTubeTranscript(lecture.fileUrl, transcriptionLanguage)
+          extractedText = result.text
+          language = result.language ?? 'auto'
+          durationSeconds = result.duration ? Math.round(result.duration) : 0
+          segments = result.segments
         } else {
           let audioUrl = lecture.fileUrl
 

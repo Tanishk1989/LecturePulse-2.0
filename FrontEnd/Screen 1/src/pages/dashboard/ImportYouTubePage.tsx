@@ -130,6 +130,7 @@ export function ImportYouTubePage() {
             <p className="mt-3 text-sm text-muted md:text-base">
               Paste a YouTube link to import and analyze lecture content.
             </p>
+            <p className="mt-2 text-xs text-muted">Public video links are sent to Supadata for transcripts. Availability depends on video access and remaining service credits.</p>
           </div>
 
           <AnimatePresence mode="wait">

@@ -11,6 +11,7 @@ import { sendRouteError } from '../utils/apiError'
 import { canonicalOwnedFileUrl } from '../config/storage'
 import { requireLectureOwner } from '../middleware/lectureOwner'
 import { aiRequestLimit } from '../middleware/aiRequestLimit'
+import { fetchYouTubeTranscript, isYouTubeTranscriptProviderConfigured } from '../services/youtubeTranscriptService'
 
 const router = Router()
 
@@ -59,6 +60,9 @@ router.post('/transcribe-youtube', requireAuth, aiRequestLimit, async (req: Auth
   }
 
   try {
+    if (isYouTubeTranscriptProviderConfigured()) {
+      return res.json(await fetchYouTubeTranscript(youtubeUrl, language))
+    }
     const audioUrl = await resolveYouTubeTranscriptionUrl(youtubeUrl)
     const result = await transcribeFromUrl(audioUrl, language)
     res.json(result)
