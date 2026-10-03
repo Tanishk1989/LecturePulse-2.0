@@ -22,13 +22,21 @@ export async function initializeStorage(): Promise<void> {
   const { data, error } = await supabase.storage.getBucket(STORAGE_BUCKET)
   if (data) {
     if (data.public) throw new Error('Lecture storage bucket must be private.')
-    return
+  } else {
+    if (error && !/not found/i.test(error.message)) throw new Error('Could not inspect durable storage.')
+    const created = await supabase.storage.createBucket(STORAGE_BUCKET, {
+      public: false, fileSizeLimit: MAX_UPLOAD_BYTES,
+    })
+    if (created.error) throw new Error('Could not create private lecture storage.')
   }
-  if (error && !/not found/i.test(error.message)) throw new Error('Could not inspect durable storage.')
-  const created = await supabase.storage.createBucket(STORAGE_BUCKET, {
-    public: false, fileSizeLimit: MAX_UPLOAD_BYTES,
-  })
-  if (created.error) throw new Error('Could not create private lecture storage.')
+  // Older releases stored files in these buckets. Keep those files, restrict access.
+  for (const category of [LECTURES_CATEGORY, DOCUMENTS_CATEGORY]) {
+    const legacy = await supabase.storage.getBucket(category)
+    if (legacy.data?.public) {
+      const updated = await supabase.storage.updateBucket(category, { public: false })
+      if (updated.error) throw new Error('Could not protect legacy lecture storage.')
+    }
+  }
 }
 
 export function storageMode(): string { return supabase ? 'supabase-private' : 'local-development' }
@@ -114,10 +122,22 @@ export function resolveLocalPathFromUrl(fileUrl: string): string | null {
 }
 
 export function parseStoredFileUrl(fileUrl: string): { category: string; relativePath: string } | null {
-  if (!resolveLocalPathFromUrl(fileUrl)) return null
-  const url = new URL(fileUrl)
-  const [category, ...segments] = url.pathname.slice('/uploads/'.length).split('/')
-  return { category, relativePath: segments.map(decodeURIComponent).join('/') }
+  try {
+    const url = new URL(fileUrl)
+    let parts: string[]
+    if (resolveLocalPathFromUrl(fileUrl)) {
+      parts = url.pathname.slice('/uploads/'.length).split('/')
+    } else if (process.env.SUPABASE_URL && url.origin === new URL(process.env.SUPABASE_URL).origin &&
+      /^\/storage\/v1\/object\/(public|sign)\//.test(url.pathname)) {
+      parts = url.pathname.split('/').slice(5)
+    } else {
+      return null
+    }
+    const [category, ...segments] = parts
+    const relativePath = segments.map(decodeURIComponent).join('/')
+    getAbsolutePath(category, relativePath)
+    return { category, relativePath }
+  } catch { return null }
 }
 
 export function canonicalOwnedFileUrl(fileUrl: string, userId: string): string {
@@ -169,8 +189,10 @@ export async function getStorageDownloadUrl(category: string, relativePath: stri
   getAbsolutePath(category, relativePath)
   if (!supabase) return null
   const { data, error } = await supabase.storage.from(STORAGE_BUCKET).createSignedUrl(`${category}/${relativePath}`, MEDIA_URL_TTL_SECONDS)
-  if (error || !data) throw new Error('File is unavailable. Please upload it again.')
-  return data.signedUrl
+  if (data && !error) return data.signedUrl
+  const legacy = await supabase.storage.from(category).createSignedUrl(relativePath, MEDIA_URL_TTL_SECONDS)
+  if (legacy.error || !legacy.data) throw new Error('File is unavailable. Please upload it again.')
+  return legacy.data.signedUrl
 }
 
 export function assertUserOwnsRelativePath(userId: string, relativePath: string): void {
@@ -181,19 +203,22 @@ export function assertUserOwnsRelativePath(userId: string, relativePath: string)
 }
 
 export async function deleteFileByUrl(fileUrl: string, userId: string): Promise<boolean> {
+  const stored = parseStoredFileUrl(fileUrl)
+  if (!stored) return false
   try {
-    const url = new URL(fileUrl)
-    if (!url.pathname.startsWith('/uploads/')) return false
-    const relativePath = url.pathname.split('/').slice(3).map(decodeURIComponent).join('/')
-    assertUserOwnsRelativePath(userId, relativePath)
+    assertUserOwnsRelativePath(userId, stored.relativePath)
   } catch {
     return false
   }
 
-  const stored = parseStoredFileUrl(fileUrl)
   if (supabase && stored) {
     const { error } = await supabase.storage.from(STORAGE_BUCKET).remove([`${stored.category}/${stored.relativePath}`])
     if (error) throw new Error('Could not delete stored file.')
+    const legacy = await supabase.storage.getBucket(stored.category)
+    if (legacy.data) {
+      const removed = await supabase.storage.from(stored.category).remove([stored.relativePath])
+      if (removed.error) throw new Error('Could not delete legacy stored file.')
+    }
   }
   const localPath = resolveLocalPathFromUrl(fileUrl)
   if (!localPath || !fs.existsSync(localPath)) {
@@ -208,8 +233,10 @@ export async function readFileBufferFromUrl(fileUrl: string): Promise<Buffer> {
   const stored = parseStoredFileUrl(fileUrl)
   if (stored && supabase) {
     const { data, error } = await supabase.storage.from(STORAGE_BUCKET).download(`${stored.category}/${stored.relativePath}`)
-    if (error || !data) throw new Error('File is unavailable. Please upload it again.')
-    return Buffer.from(await data.arrayBuffer())
+    if (data && !error) return Buffer.from(await data.arrayBuffer())
+    const legacy = await supabase.storage.from(stored.category).download(stored.relativePath)
+    if (legacy.error || !legacy.data) throw new Error('File is unavailable. Please upload it again.')
+    return Buffer.from(await legacy.data.arrayBuffer())
   }
   const localPath = resolveLocalPathFromUrl(fileUrl)
   if (localPath && fs.existsSync(localPath)) {

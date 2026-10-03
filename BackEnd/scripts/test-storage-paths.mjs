@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 
 process.env.UPLOADS_DIR = path.join(tmpdir(), 'lecturepulse-storage-path-tests')
 process.env.PUBLIC_BASE_URL = 'https://api.example.test'
+process.env.SUPABASE_URL = 'https://project.example.test'
 
 const storage = await import('../dist/config/storage.js')
 
@@ -57,4 +58,11 @@ test('local URL resolution is limited to this backend origin', () => {
     storage.resolveLocalPathFromUrl('https://other.example.test/uploads/documents/user-1/file.pdf'),
     null,
   )
+})
+
+test('legacy storage references are restricted to this project and owner', () => {
+  const legacy = 'https://project.example.test/storage/v1/object/public/documents/user-1/notes.pdf'
+  assert.equal(storage.canonicalOwnedFileUrl(legacy, 'user-1'), 'https://api.example.test/uploads/documents/user-1/notes.pdf')
+  assert.throws(() => storage.canonicalOwnedFileUrl(legacy, 'user-2'))
+  assert.equal(storage.parseStoredFileUrl(legacy.replace('project.example.test', 'other.example.test')), null)
 })
