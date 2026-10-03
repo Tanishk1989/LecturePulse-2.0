@@ -74,7 +74,10 @@ export async function fetchYouTubeTranscript(youtubeUrl: string, language?: stri
     url.searchParams.set('url', `https://www.youtube.com/watch?v=${videoId}`)
     url.searchParams.set('text', 'false')
     url.searchParams.set('mode', 'auto')
-    if (language && language !== 'auto' && /^[a-z]{2,3}(?:-[A-Za-z]{2,4})?$/.test(language)) url.searchParams.set('lang', language)
+    // Without a preference the provider may choose an unrelated translated track (e.g. German).
+    // Explicit user language wins; Auto prefers English captions and falls back to available tracks.
+    const preferredLanguage = language && language !== 'auto' ? language : 'en'
+    if (/^[a-z]{2,3}(?:-[A-Za-z]{2,4})?$/.test(preferredLanguage)) url.searchParams.set('lang', preferredLanguage)
     let data = await request(url)
     if (data.jobId) {
       if (typeof data.jobId !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(data.jobId)) throw new Error('Invalid YouTube transcript job response.')

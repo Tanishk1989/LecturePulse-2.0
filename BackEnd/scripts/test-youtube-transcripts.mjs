@@ -41,6 +41,10 @@ test('validated canonical links use fixed origin, backend header, timestamps and
     assert.equal((await fetchYouTubeTranscript('https://youtu.be/jNQXAC9IVRw?list=anything', 'hi', { fetchImpl })).text, parseYouTubeTranscript(fixture).text)
     await assert.rejects(fetchYouTubeTranscript('https://evil.test/watch?v=jNQXAC9IVRw', undefined, { fetchImpl }), /Invalid YouTube/)
     assert.equal(calls, 1)
+    await fetchYouTubeTranscript('https://youtu.be/jNQXAC9IVRw', 'auto', { fetchImpl: async url => {
+      assert.equal(url.searchParams.get('lang'), 'en')
+      return json(fixture)
+    } })
   } finally { if (previousKey === undefined) delete process.env.SUPADATA_API_KEY; else process.env.SUPADATA_API_KEY = previousKey }
 })
 
