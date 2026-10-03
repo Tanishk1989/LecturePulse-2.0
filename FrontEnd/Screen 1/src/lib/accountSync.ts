@@ -61,9 +61,14 @@ export function subscribeSyncedValue(uid: string, key: string, callback: () => v
 }
 
 export function normalizeTutorHistory(messages: any[]): any[] {
-  const clean = messages.filter(message => ['user', 'assistant', 'context-notice'].includes(message?.role) && typeof message.content === 'string')
+  const seen = new Set<string>()
+  const clean = (Array.isArray(messages) ? messages : []).filter(message => ['user', 'assistant', 'context-notice'].includes(message?.role) && typeof message.content === 'string')
     .slice(-100).map(message => ({ id: message.id ?? crypto.randomUUID(), role: message.role, content: message.content.slice(0, 30_000), hasError: Boolean(message.hasError) }))
-  while (JSON.stringify(clean).length > 95_000 && clean.length) clean.shift()
+  for (const message of clean) {
+    if (typeof message.id !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(message.id) || seen.has(message.id)) message.id = crypto.randomUUID()
+    seen.add(message.id)
+  }
+  while (new TextEncoder().encode(JSON.stringify(clean)).byteLength > 95_000 && clean.length) clean.shift()
   return clean
 }
 
@@ -125,6 +130,7 @@ export function startAccountSync(uid: string, onStatus: (status: 'syncing' | 'sa
         let base = meta.base, revision = meta.revision
         if (remote && remote.revision !== revision) { local = mergeSyncedData(base, local, remote.data); base = remote.data; revision = remote.revision }
         for (let attempt = 0; attempt < 3 && validSession(); attempt++) {
+          if (key.startsWith('tutor-history:')) local = normalizeTutorHistory(local)
           const before = localStorage.getItem(storage)
           try {
             const saved = await apiFetch<Document>(`/user-sync/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify({ data: local, revision }) })

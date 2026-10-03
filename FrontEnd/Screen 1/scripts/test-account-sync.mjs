@@ -22,6 +22,15 @@ test('three-way merge preserves independent preferences and deletes without resu
   assert.deepEqual(mergeSyncedData([{id:'a',title:'old'}],[],[{id:'a',title:'edited'},{id:'b',title:'new'}]),[{id:'b',title:'new'}])
   assert.deepEqual(mergeSyncedData([],[{id:'a',content:'A'}],[{id:'b',content:'B'}]),[{id:'b',content:'B'},{id:'a',content:'A'}])
 })
+test('merged history is bounded in messages and UTF-8 bytes with stable unique IDs',()=>{
+  const messages=Array.from({length:150},(_,i)=>({id:String(i),role:'user',content:'हिंदी '.repeat(1000)}))
+  const clean=sync.normalizeTutorHistory(messages)
+  assert.ok(clean.length<=100)
+  assert.ok(new TextEncoder().encode(JSON.stringify(clean)).byteLength<=95_000)
+  const duplicates=sync.normalizeTutorHistory([{id:'a',role:'user',content:'x'},{id:'a',role:'assistant',content:'y'}])
+  assert.equal(new Set(duplicates.map(m=>m.id)).size,2)
+  assert.deepEqual(sync.normalizeTutorHistory(duplicates),duplicates)
+})
 test('isolated device caches sync, retry CAS conflicts, retain offline edits and isolate accounts',async()=>{
   const cloud=new Map();let conflict=false
   globalThis.window=new EventTarget()

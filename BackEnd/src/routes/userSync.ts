@@ -4,7 +4,7 @@ import { requireAuth, type AuthenticatedRequest } from '../middleware/auth'
 import { sendRouteError } from '../utils/apiError'
 
 export function isValidSyncDocument(key: unknown, data: any): boolean {
-  if (typeof key !== 'string' || JSON.stringify(data ?? null).length > 100_000) return false
+  if (typeof key !== 'string' || Buffer.byteLength(JSON.stringify(data ?? null), 'utf8') > 100_000) return false
   if (key === 'preferences') return data && typeof data === 'object' && !Array.isArray(data)
     && ['general', 'notifications', 'ai'].every(field => !data[field] || typeof data[field] === 'object' && !Array.isArray(data[field]))
   if (key === 'timetable') return Array.isArray(data) && data.length <= 200 && new Set(data.map(row => row?.id)).size === data.length && data.every(row =>
