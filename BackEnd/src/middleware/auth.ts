@@ -17,8 +17,11 @@ export async function requireAuth(req: AuthenticatedRequest, res: Response, next
     const decodedToken = await firebaseAuth.verifyIdToken(token)
     req.user = decodedToken
     next()
-  } catch {
-    console.warn('Auth verification failed; session rejected.')
+  } catch (error) {
+    // Only SDK classification codes are logged; never tokens, claims or provider messages.
+    const candidate=(error as {code?:unknown})?.code
+    const code=typeof candidate==='string' && /^auth\/[a-z-]+$/.test(candidate)?candidate:'unclassified'
+    console.warn(`Auth verification failed (${code}); session rejected.`)
     return res.status(401).json({ error: 'Invalid or expired authentication session.' })
   }
 }
