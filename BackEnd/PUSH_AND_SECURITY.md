@@ -14,4 +14,6 @@ The API now uses Firebase's public signing certificates to verify Firebase clien
 
 Secret remediation requires explicit authorization. `rotate-database-secret.mjs` rotates only the checked `postgres` role, updates the ignored local environment using apply_patch, and prepares an ignored runtime record for the approved Render secret handoff. It never prints old/new connection secrets. Changing the shared database password affects other consumers of that password. Git history is not rewritten; disabling historical credentials is the protection against reuse.
 
+The current Supabase project rejects SQL password changes with SQLSTATE `42501`. The attempted rotation restored the original local environment and removed its temporary handoff record; the exposed database password has **not** been rotated. Dashboard password entry/confirmation must be completed by the account owner, followed by updating every backend connection secret. Do not report credential remediation complete until that reset and a fresh connection check succeed.
+
 Tests: `npm run test:push-limits`, `npm run test:persistence`, frontend `npm run test:push`. Set `RUN_PERSISTENCE_DB_TEST=true` to exercise actual PostgreSQL quotas, leases and push-outbox SQL in rolled-back temporary tables; no production application rows are modified by those tests.

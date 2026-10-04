@@ -9,9 +9,11 @@ try {
       has_table_privilege('anon',c.oid,'SELECT') AS anon_read,
       has_table_privilege('authenticated',c.oid,'SELECT') AS authenticated_read
     FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-    WHERE n.nspname='public' AND c.relname IN ('processing_jobs','user_sync_documents') ORDER BY c.relname`
+    WHERE n.nspname='public' AND c.relname IN ('processing_jobs','user_sync_documents','server_secrets','ai_limit_buckets','ai_limit_leases','push_subscriptions','push_deliveries') ORDER BY c.relname`
   console.log('Persistence table security:',JSON.stringify(tables))
-  if(tables.length!==2 || tables.some(t=>!t.rls||t.anon_read||t.authenticated_read)) throw Error('Persistence table security is not ready')
+  if(tables.length!==7 || tables.some(t=>!t.rls||t.anon_read||t.authenticated_read)) throw Error('Persistence table security is not ready')
+  console.log('Push subscriptions:',JSON.stringify(await prisma.$queryRaw`SELECT COUNT(*)::integer AS count FROM push_subscriptions`))
+  console.log('Push delivery states:',JSON.stringify(await prisma.$queryRaw`SELECT state,COUNT(*)::integer AS count FROM push_deliveries GROUP BY state`))
   console.log('Job states:',JSON.stringify(await prisma.$queryRaw`SELECT state,COUNT(*)::integer AS count FROM processing_jobs GROUP BY state`))
   console.log('Sync summary:',JSON.stringify(await prisma.$queryRaw`
     SELECT CASE WHEN document_key LIKE 'tutor-history:%' THEN 'tutor-history' ELSE document_key END AS kind,
