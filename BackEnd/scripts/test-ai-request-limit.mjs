@@ -56,6 +56,11 @@ test('paid routes enforce limits before provider calls, while unauthenticated re
   const express = require('express')
   const { firebaseAuth } = require('../dist/config/firebase.js')
   const original = firebaseAuth.verifyIdToken
+  const shared=require('../dist/services/sharedAiLimit.js')
+  const originalAcquire=shared.acquireAiPermit,originalRelease=shared.releaseAiPermit
+  let calls=0
+  shared.acquireAiPermit=async()=>++calls<=12?{token:'fixture'}:{retryAfter:60}
+  shared.releaseAiPermit=async()=>{}
   firebaseAuth.verifyIdToken = async () => ({uid:'quota-test'})
   const app = express();app.use(express.json());app.use(require('../dist/routes/ai.js').default)
   const server = app.listen(0,'127.0.0.1')
@@ -68,13 +73,17 @@ test('paid routes enforce limits before provider calls, while unauthenticated re
     }
     const blocked = await fetch(url,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer fixture'},body:'{}'})
     assert.equal(blocked.status,429);assert.ok(Number(blocked.headers.get('Retry-After')) > 0)
-  } finally {await new Promise(resolve => server.close(resolve));firebaseAuth.verifyIdToken = original}
+  } finally {await new Promise(resolve => server.close(resolve));firebaseAuth.verifyIdToken = original;shared.acquireAiPermit=originalAcquire;shared.releaseAiPermit=originalRelease}
 })
 test('closing an SSE answer aborts the upstream provider request', async () => {
   const express = require('express')
   const { firebaseAuth } = require('../dist/config/firebase.js')
   const groq = require('../dist/services/groq.js')
   const originalAuth = firebaseAuth.verifyIdToken, originalClient = groq.getGroqClient
+  const shared=require('../dist/services/sharedAiLimit.js')
+  const originalAcquire=shared.acquireAiPermit,originalRelease=shared.releaseAiPermit
+  shared.acquireAiPermit=async()=>({token:'fixture'})
+  shared.releaseAiPermit=async()=>{}
   firebaseAuth.verifyIdToken = async () => ({uid:'stream-test'})
   let confirmAbort
   const aborted = new Promise(resolve => {confirmAbort = resolve})
@@ -99,5 +108,6 @@ test('closing an SSE answer aborts the upstream provider request', async () => {
   } finally {
     server.closeAllConnections();await new Promise(resolve => server.close(resolve))
     firebaseAuth.verifyIdToken = originalAuth;groq.getGroqClient = originalClient
+    shared.acquireAiPermit=originalAcquire;shared.releaseAiPermit=originalRelease
   }
 })

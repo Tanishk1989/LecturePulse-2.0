@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { prisma } from '../config/db'
 import { triggerLectureProcessing, type ProcessLectureOptions } from './processingService'
+import { acquireAiPermit, releaseAiPermit, renewAiPermit } from './sharedAiLimit'
 
 interface Job { lectureId: string; userId: string; options: ProcessLectureOptions; attempts: number }
 let working = false
@@ -61,9 +62,18 @@ export async function runProcessingQueueOnce() {
         RETURNING j.lecture_id AS "lectureId",j.user_id AS "userId",j.options,j.attempts`
     const job = jobs[0]
     if (!job) return
+    const permit = await acquireAiPermit(job.userId)
+    if (!permit.token) {
+      const seconds = Math.max(5, permit.retryAfter ?? 30)
+      await prisma.$executeRaw`UPDATE processing_jobs SET state='queued',attempts=attempts-1,
+        available_at=clock_timestamp()+${seconds}*INTERVAL '1 second',lease_until=NULL,lease_token=NULL
+        WHERE lecture_id=${job.lectureId} AND lease_token=${token}`
+      return
+    }
     let leaseLost = false
     const assertActive = async () => {
       if (leaseLost) throw new Error('Processing lease expired.')
+      await renewAiPermit(permit.token!)
       const updated = await prisma.$executeRaw`
         UPDATE processing_jobs SET lease_until=NOW()+INTERVAL '180 seconds',updated_at=NOW()
         WHERE lecture_id=${job.lectureId} AND state='running' AND lease_token=${token} AND lease_until>NOW()`
@@ -86,7 +96,7 @@ export async function runProcessingQueueOnce() {
           available_at=NOW()+INTERVAL '30 seconds',lease_until=NULL,lease_token=NULL,
           last_error='Processing failed. Please retry if automatic recovery does not succeed.',updated_at=NOW()
         WHERE lecture_id=${job.lectureId} AND lease_token=${token}`
-    } finally { clearInterval(heartbeat) }
+    } finally { clearInterval(heartbeat);await releaseAiPermit(permit.token).catch(() => {}) }
   } catch { console.error('[ProcessingQueue] Worker check failed; it will retry.') }
   finally { working = false }
 }

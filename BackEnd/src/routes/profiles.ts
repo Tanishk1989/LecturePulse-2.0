@@ -93,6 +93,7 @@ router.delete('/', requireAuth, async (req: AuthenticatedRequest, res: Response)
 
   try {
     await prisma.$transaction(async tx => {
+      await tx.$executeRaw`DELETE FROM push_subscriptions WHERE user_id=${userId}`
       await tx.$executeRaw`DELETE FROM user_sync_documents WHERE user_id=${userId}`
       await tx.userProfile.deleteMany({ where: { userId } })
     })

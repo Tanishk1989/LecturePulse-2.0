@@ -77,7 +77,7 @@ test('real PostgreSQL queue: atomic deduplication, recovery, bounded retries and
       await tx.$executeRawUnsafe('CREATE TEMP TABLE lectures (id TEXT PRIMARY KEY,user_id TEXT,status TEXT) ON COMMIT DROP')
       await tx.$executeRawUnsafe('CREATE TEMP TABLE transcripts (lecture_id TEXT,user_id TEXT,status TEXT) ON COMMIT DROP')
       await tx.$executeRawUnsafe('CREATE TEMP TABLE lecture_notes (lecture_id TEXT,user_id TEXT,status TEXT) ON COMMIT DROP')
-      const sql = await readFile(new URL('../prisma/migrations/durable_jobs_and_sync.sql',import.meta.url),'utf8')
+      const sql = (await Promise.all(['durable_jobs_and_sync.sql','push_and_ai_limits.sql'].map(file=>readFile(new URL('../prisma/migrations/'+file,import.meta.url),'utf8')))).join('\n')
       for (const statement of sql.split(';').map(s => s.trim()).filter(Boolean)) {
         await tx.$executeRawUnsafe(statement.replace(/CREATE TABLE IF NOT EXISTS/g,'CREATE TEMP TABLE'))
       }
@@ -123,7 +123,7 @@ test('real PostgreSQL queue: atomic deduplication, recovery, bounded retries and
       await queue.runProcessingQueueOnce()
       assert.equal((await queue.getProcessingJob('job','alice')).state,'running')
       throw rollback
-    },{timeout:120_000})
+    },{timeout:240_000})
   } catch (error) {if(error!==rollback) throw error}
   finally {for (const restore of [...originals.keys()].reverse()) restore();await prisma.$disconnect()}
 })

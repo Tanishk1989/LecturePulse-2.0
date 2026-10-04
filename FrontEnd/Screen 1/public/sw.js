@@ -1,6 +1,27 @@
 const CACHE_NAME = 'lecturepulse-shell-v2'
 const SHELL = ['/', '/index.html', '/favicon.svg', '/manifest.webmanifest']
 
+self.addEventListener('push', (event) => {
+  let payload = {}
+  try { payload = event.data?.json() || {} } catch { /* Malformed data must not crash the worker. */ }
+  event.waitUntil(self.registration.showNotification(String(payload.title || 'LecturePulse').slice(0,100), {
+    body:String(payload.body || 'Your study update is ready.').slice(0,300), icon:'/favicon.svg',
+    tag:String(payload.tag || 'lecturepulse').slice(0,200), data:{url:payload.url || '/dashboard'},
+  }))
+})
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  event.waitUntil((async()=>{
+    const requested=new URL(event.notification.data?.url || '/dashboard', self.location.origin)
+    const target=requested.origin===self.location.origin ? requested.href : new URL('/dashboard',self.location.origin).href
+    const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true})
+    for (const client of windows) {
+      if (new URL(client.url).origin===self.location.origin) {await client.navigate(target);await client.focus();return}
+    }
+    await self.clients.openWindow(target)
+  })())
+})
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()),

@@ -19,6 +19,8 @@ import searchRouter from './routes/search'
 import sharesRouter from './routes/shares'
 import analyticsRouter from './routes/analytics'
 import userSyncRouter from './routes/userSync'
+import pushRouter from './routes/push'
+import { initializePushKeys, startPushWorker } from './services/pushService'
 import { ensureUploadDirs, initializeStorage, storageMode, UPLOADS_ROOT } from './config/storage'
 import { prisma } from './config/db'
 import { resolveApiError } from './utils/apiError'
@@ -52,6 +54,7 @@ app.use('/api/search', searchRouter)
 app.use('/api/shares', sharesRouter)
 app.use('/api/analytics', analyticsRouter)
 app.use('/api/user-sync', userSyncRouter)
+app.use('/api/push', pushRouter)
 
 
 app.get('/', (_req, res) => {
@@ -65,7 +68,7 @@ app.get('/', (_req, res) => {
 })
 
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'healthy', storage: storageMode(), processingQueue: 'postgres', accountSync: 'postgres', audioConversion: audioConversionAvailable, youtubeDownloader: isBundledYouTubeDownloaderAvailable(), revision: process.env.RENDER_GIT_COMMIT?.slice(0, 7), timestamp: new Date().toISOString() })
+  res.json({ status: 'healthy', storage: storageMode(), processingQueue: 'postgres', accountSync: 'postgres', aiLimits: 'postgres', push: 'web-push', auth: 'public-key-verification', audioConversion: audioConversionAvailable, youtubeDownloader: isBundledYouTubeDownloaderAvailable(), revision: process.env.RENDER_GIT_COMMIT?.slice(0, 7), timestamp: new Date().toISOString() })
 })
 
 app.get('/api/health/db', async (_req, res) => {
@@ -120,6 +123,7 @@ async function startServer() {
     await initializeStorage()
     await connectDatabase()
     await initializePersistenceSchema()
+    await initializePushKeys()
     await recoverProcessingJobs()
   } catch {
     process.exit(1)
@@ -127,8 +131,10 @@ async function startServer() {
 
   app.listen(PORT, () => {
     const stopWorker = startProcessingWorker()
-    process.once('SIGTERM', stopWorker)
-    process.once('SIGINT', stopWorker)
+    const stopPush = startPushWorker()
+    const stop = () => { stopWorker();stopPush() }
+    process.once('SIGTERM', stop)
+    process.once('SIGINT', stop)
     console.log(`LecturePulse 2.0 Backend listening on port ${PORT}`)
     console.log(`Local uploads served from ${path.resolve(UPLOADS_ROOT)}`)
   })

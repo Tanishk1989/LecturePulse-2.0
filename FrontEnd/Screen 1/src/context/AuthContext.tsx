@@ -19,6 +19,7 @@ import {
 } from 'firebase/auth'
 import { auth, googleProvider } from '@/lib/firebase'
 import { refreshSupabaseAuth, syncSupabaseAuth } from '@/lib/supabaseAuthSync'
+import { disableServerPush } from '@/services/pushService'
 
 interface AuthContextValue {
   user: User | null
@@ -81,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const logout = useCallback(async () => {
+    await disableServerPush().catch(() => {})
     await signOut(auth)
   }, [])
 

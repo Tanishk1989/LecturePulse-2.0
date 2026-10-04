@@ -25,6 +25,7 @@ import { fetchUserProfile, updateUserProfile, type UserProfile } from '@/service
 import type { UserPreferences } from '@/types/userPreferences'
 import { getAuthErrorMessage } from '@/lib/authErrors'
 import { cn } from '@/lib/utils'
+import { setPushEnabled, testServerPush } from '@/services/pushService'
 
 const SECTIONS = [
   { id: 'general', label: 'General', icon: Settings },
@@ -138,25 +139,20 @@ export function SettingsPage() {
   }
 
   const handleToggleReminder = async (checked: boolean) => {
-    if (checked && 'Notification' in window && Notification.permission !== 'granted') {
-      const permission = await Notification.requestPermission()
-      if (permission !== 'granted') {
-        toast.error('Notification permission denied. Enable it in browser settings.')
-        return
-      }
-    }
     await handleAutoSaveProfile({ dailyReminder: checked })
   }
 
   const handleToggleStreakAlerts = async (checked: boolean) => {
-    if (checked && 'Notification' in window && Notification.permission !== 'granted') {
-      const permission = await Notification.requestPermission()
-      if (permission !== 'granted') {
-        toast.error('Notification permission denied. Enable it in browser settings.')
-        return
-      }
-    }
     await handleAutoSaveProfile({ streakAlerts: checked })
+  }
+
+  const handlePush = async (enabled: boolean) => {
+    if (!user) return
+    try {
+      await setPushEnabled(user.uid,enabled)
+      setPrefs(loadUserPreferences(user.uid))
+      toast.success(enabled?'Server push enabled on this device.':'Push disabled on this device.')
+    } catch(error) {toast.error(error instanceof Error?error.message:'Could not update notifications.')}
   }
 
   const handleSave = async () => {
@@ -285,6 +281,8 @@ export function SettingsPage() {
 
         {activeSection === 'notifications' && (
           <div className="space-y-4">
+            <Toggle checked={prefs.notifications.pushEnabled} onChange={handlePush} label="Browser push notifications" description="Enable on each device. Reminders can arrive with the LecturePulse tab closed; delivery depends on browser/OS permissions." />
+            {prefs.notifications.pushEnabled && <button type="button" onClick={()=>{void testServerPush().then(()=>toast.success('Test notification queued.')).catch(error=>toast.error(error instanceof Error?error.message:'Notification test failed.'))}} className="rounded-full border border-accent/30 px-4 py-2 text-sm">Send test notification</button>}
             <div>
               <h2 className="text-lg font-semibold text-foreground">Notifications</h2>
               <p className="mt-1 text-sm text-muted">
@@ -328,7 +326,7 @@ export function SettingsPage() {
                 updatePrefs({ notifications: { ...prefs.notifications, notesReady: v } })
               }
               label="Notes ready"
-              description="Email me when AI notes finish processing"
+              description="Push notification when new AI notes are ready (not email)"
             />
             <Toggle
               checked={prefs.notifications.weeklyDigest}
