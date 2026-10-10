@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { FileText, Loader2, NotebookPen, Search, Tag } from 'lucide-react'
 import { FadeUp } from '@/components/effects/FadeUp'
@@ -6,6 +6,7 @@ import { DashboardPageHeader, DashboardPageShell } from '@/components/dashboard/
 import { useToast } from '@/components/ui/ToastProvider'
 import { searchLectures, SEARCH_FIELD_LABELS, type SearchResult } from '@/services/searchService'
 import { cn } from '@/lib/utils'
+import { DataLoadError } from '@/components/dashboard/ui/DataLoadError'
 
 function highlightSnippet(snippet: string, query: string): ReactNode {
   if (!query.trim()) return snippet
@@ -81,20 +82,18 @@ export function SearchPage() {
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const requestVersion = useRef(0)
   const { toast } = useToast()
 
-  useEffect(() => {
-    setQuery(initialQuery)
-    if (initialQuery.trim()) {
-      void runSearch(initialQuery)
-    }
-  }, [initialQuery])
-
-  const runSearch = async (value: string) => {
+  const runSearch = useCallback(async (value: string) => {
+    const version = ++requestVersion.current
     const trimmed = value.trim()
+    setError(null)
     if (!trimmed) {
       setResults([])
       setSearched(false)
+      setLoading(false)
       return
     }
 
@@ -102,27 +101,37 @@ export function SearchPage() {
     setSearched(true)
     try {
       const response = await searchLectures(trimmed)
+      if (version !== requestVersion.current) return
       setResults(response.results)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Search failed.')
+    } catch (err) {
+      if (version !== requestVersion.current) return
+      const message = err instanceof Error ? err.message : 'Search failed.'
+      setError(message)
+      toast.error(message)
       setResults([])
     } finally {
-      setLoading(false)
+      if (version === requestVersion.current) setLoading(false)
     }
-  }
+  }, [toast])
+
+  useEffect(() => {
+    setQuery(initialQuery)
+    void runSearch(initialQuery)
+    return () => { requestVersion.current += 1 }
+  }, [initialQuery, runSearch])
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault()
     const trimmed = query.trim()
-    setSearchParams(trimmed ? { q: trimmed } : {})
-    void runSearch(trimmed)
+    if (trimmed === initialQuery) void runSearch(trimmed)
+    else setSearchParams(trimmed ? { q: trimmed } : {})
   }
 
   const resultCountLabel = useMemo(() => {
-    if (!searched) return null
+    if (!searched || error) return null
     if (loading) return 'Searching…'
     return `${results.length} result${results.length === 1 ? '' : 's'}`
-  }, [loading, results.length, searched])
+  }, [loading, results.length, searched, error])
 
   return (
     <DashboardPageShell className="space-y-8">
@@ -161,6 +170,8 @@ export function SearchPage() {
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-accent" />
         </div>
+      ) : error ? (
+        <DataLoadError title="Search unavailable" message={error} onRetry={() => runSearch(initialQuery)} />
       ) : searched && results.length === 0 ? (
         <FadeUp delay={0.1}>
           <div className="rounded-3xl border border-white/[0.08] bg-card/50 px-6 py-16 text-center">

@@ -1,5 +1,7 @@
 import { auth } from '@/lib/firebase'
 import { sanitizeApiErrorMessage } from '@/lib/apiErrors'
+import { ApiError, requestApiResponse } from '@/lib/apiTransport'
+export { ApiError } from '@/lib/apiTransport'
 
 const configuredBackendUrl =
   import.meta.env.VITE_BACKEND_URL_OVERRIDE?.trim() ||
@@ -12,18 +14,6 @@ export const BACKEND_URL = (
     : 'https://lecturepulse-api-tanishk.onrender.com/api')
 ).replace(/\/+$/, '')
 export const BACKEND_ORIGIN = BACKEND_URL.replace(/\/api\/?$/, '')
-
-export class ApiError extends Error {
-  code?: string
-  status: number
-
-  constructor(message: string, status: number, code?: string) {
-    super(message)
-    this.name = 'ApiError'
-    this.status = status
-    this.code = code
-  }
-}
 
 export async function apiFetch<T>(
   endpoint: string,
@@ -40,10 +30,9 @@ export async function apiFetch<T>(
     headers.set('Content-Type', 'application/json')
   }
 
-  const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+  const response = await requestApiResponse(`${BACKEND_URL}${endpoint}`, {
     ...options,
     headers,
-    signal: options.signal ?? AbortSignal.timeout(120_000),
   })
 
   if (!response.ok) {
@@ -86,7 +75,7 @@ export async function apiFetchStream(
     headers.set('Content-Type', 'application/json')
   }
 
-  const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+  const response = await requestApiResponse(`${BACKEND_URL}${endpoint}`, {
     ...options,
     headers,
   })
@@ -96,12 +85,12 @@ export async function apiFetchStream(
     try {
       const errJson = await response.json()
       if (errJson && typeof errJson === 'object' && 'error' in errJson) {
-        errMsg = String(errJson.error)
+        errMsg = sanitizeApiErrorMessage(String(errJson.error), typeof errJson.code === 'string' ? errJson.code : undefined)
       }
     } catch {
       // ignored
     }
-    throw new Error(errMsg)
+    throw new ApiError(errMsg, response.status)
   }
 
   const reader = response.body?.getReader()

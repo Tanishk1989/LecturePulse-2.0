@@ -17,12 +17,14 @@ interface UseStudyMetricsResult {
   revisionBuckets: RevisionBucket[]
   lectureTitles: Record<string, string>
   loading: boolean
+  error: string | null
+  refresh: () => Promise<void>
 }
 
 export function useStudyMetrics(): UseStudyMetricsResult {
-  const { lectures, loading: lecturesLoading } = useLectures()
-  const { notes, loading: notesLoading } = useUserNotes()
-  const { flashcards, loading: flashcardsLoading } = useFlashcards()
+  const { lectures, loading: lecturesLoading, error: lecturesError, refresh: refreshLectures } = useLectures()
+  const { notes, loading: notesLoading, error: notesError, refresh: refreshNotes } = useUserNotes()
+  const { flashcards, loading: flashcardsLoading, error: flashcardsError, refresh: refreshFlashcards } = useFlashcards()
 
   const lectureTitles = useMemo(
     () => Object.fromEntries(lectures.map((lecture) => [lecture.id, lecture.title])),
@@ -50,5 +52,7 @@ export function useStudyMetrics(): UseStudyMetricsResult {
     revisionBuckets,
     lectureTitles,
     loading: lecturesLoading || notesLoading || flashcardsLoading,
+    error: lecturesError || notesError || flashcardsError,
+    refresh: async () => { await Promise.all([refreshLectures(), refreshNotes(), refreshFlashcards()]) },
   }
 }

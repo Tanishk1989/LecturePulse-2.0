@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/dashboard/ui/Skeleton'
 import { getStreakData, useStreakFreeze, letGoStreak, type StreakData } from '@/services/streakService'
 import { useToast } from '@/components/ui/ToastProvider'
 import { cn } from '@/lib/utils'
+import { DataLoadError } from '@/components/dashboard/ui/DataLoadError'
 
 const SnowflakeIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={cn("text-sky-400", className)}>
@@ -19,15 +20,18 @@ const SnowflakeIcon = ({ className }: { className?: string }) => (
 export function StreakPage() {
   const [streakData, setStreakData] = useState<StreakData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
   const { toast } = useToast()
 
   const loadData = async () => {
+    setLoading(true)
+    setError(null)
     try {
       const data = await getStreakData()
       setStreakData(data)
     } catch (err) {
-      console.error('Failed to load streak data:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load streak data.')
     } finally {
       setLoading(false)
     }
@@ -140,6 +144,13 @@ export function StreakPage() {
     if (count === 2) return 'bg-[#2d6a2d]'
     if (count === 3) return 'bg-[#3fa83f]'
     return 'bg-[#57e557]'
+  }
+
+  if (!loading && (error || !streakData)) {
+    return <DashboardPageShell>
+      <DashboardPageHeader title="Daily Streak" description="Build consistency and lock in knowledge." />
+      <DataLoadError message={error || 'Streak data is unavailable.'} onRetry={loadData} />
+    </DashboardPageShell>
   }
 
   if (loading || !streakData) {

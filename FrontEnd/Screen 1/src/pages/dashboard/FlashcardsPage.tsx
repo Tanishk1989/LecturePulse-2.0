@@ -19,14 +19,15 @@ import { generateDeckFromAllLectures } from '@/services/flashcardBatchService'
 import { getTranscriptByLectureId } from '@/services/transcriptionService'
 import type { FlashcardStatus } from '@/types/flashcard'
 import { cn } from '@/lib/utils'
+import { DataLoadError } from '@/components/dashboard/ui/DataLoadError'
 
 type StatusFilter = 'all' | 'due' | FlashcardStatus
 
 export function FlashcardsPage() {
   const { user } = useAuthContext()
   const { toast } = useToast()
-  const { lectures } = useLectures()
-  const { flashcards, loading, reviewCard, removeFlashcard, saveFlashcards, refresh } =
+  const { lectures, loading: lecturesLoading, error: lecturesError, refresh: refreshLectures } = useLectures()
+  const { flashcards, loading, error: cardsError, reviewCard, removeFlashcard, saveFlashcards, refresh } =
     useFlashcards()
 
   const [lectureFilter, setLectureFilter] = useState<string>('all')
@@ -184,6 +185,14 @@ export function FlashcardsPage() {
 
   const showEmpty = !loading && flashcards.length === 0
   const showFilteredEmpty = !loading && flashcards.length > 0 && filteredCards.length === 0
+
+  const error = lecturesError || cardsError
+  if (error && !loading && !lecturesLoading) {
+    return <DashboardPageShell>
+      <DashboardPageHeader title="Flashcards" description="Study with spaced repetition." />
+      <DataLoadError message={error} onRetry={async () => { await Promise.all([refresh(), refreshLectures()]) }} />
+    </DashboardPageShell>
+  }
 
   return (
     <DashboardPageShell className="max-w-4xl mx-auto">

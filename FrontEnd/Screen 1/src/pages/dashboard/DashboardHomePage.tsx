@@ -11,6 +11,7 @@ import { getStreakData, useStreakFreeze, letGoStreak, type StreakData } from '@/
 import { useToast } from '@/components/ui/ToastProvider'
 import { cn } from '@/lib/utils'
 import { FadeUp } from '@/components/effects/FadeUp'
+import { DataLoadError } from '@/components/dashboard/ui/DataLoadError'
 
 const SnowflakeIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={cn("text-sky-400", className)}>
@@ -22,7 +23,7 @@ const SnowflakeIcon = ({ className }: { className?: string }) => (
 )
 
 export function DashboardHomePage() {
-  const { metrics, loading: metricsLoading } = useStudyMetrics()
+  const { metrics, loading: metricsLoading, error: metricsError, refresh } = useStudyMetrics()
   const { lectures } = useLectures()
   const [streakData, setStreakData] = useState<StreakData | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
@@ -108,8 +109,10 @@ export function DashboardHomePage() {
           </FadeUp>
         )}
 
-        <DashboardHero metrics={metrics} loading={metricsLoading} />
-        <FutureViewSection lectureCount={lectures.length} />
+        {metricsError && !metricsLoading ? <DataLoadError message={metricsError} onRetry={refresh} /> : <>
+          <DashboardHero metrics={metrics} loading={metricsLoading} />
+          {!metricsLoading && <FutureViewSection lectureCount={lectures.length} />}
+        </>}
         <LiveLectureCard />
         <RecentLecturesSection />
       </DashboardPageShell>

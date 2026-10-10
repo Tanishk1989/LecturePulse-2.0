@@ -12,6 +12,7 @@
     }
   },
   "scripts": {
+    "test:readiness": "npm run build && node --test scripts/test-readiness.mjs",
     "test:push-limits": "npm run build && node --test scripts/test-push-limits.mjs",
     "test:persistence": "npm run build && node --test scripts/test-persistence.mjs",
     "dev": "tsx watch src/index.ts",

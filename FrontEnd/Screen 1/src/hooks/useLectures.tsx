@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
@@ -58,8 +59,15 @@ function useLecturesState(): LecturesContextValue {
   const [lectures, setLectures] = useState<LectureRecording[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const owner = useRef<string | null>(null)
+  const request = useRef(0)
 
   const refresh = useCallback(async () => {
+    const version = ++request.current
+    if (owner.current !== (user?.uid ?? null)) {
+      owner.current = user?.uid ?? null
+      setLectures([])
+    }
     if (!user) {
       setLectures([])
       setError(null)
@@ -71,19 +79,21 @@ function useLecturesState(): LecturesContextValue {
     setError(null)
     try {
       const rows = await getUserLectures(user.uid)
+      if (version !== request.current) return
       setLectures(rows)
     } catch (err) {
+      if (version !== request.current) return
       const message = err instanceof Error ? err.message : 'Failed to load lectures.'
       setError(message)
-      setLectures([])
       toast.error(message)
     } finally {
-      setLoading(false)
+      if (version === request.current) setLoading(false)
     }
   }, [toast, user])
 
   useEffect(() => {
     void refresh()
+    return () => { request.current += 1 }
   }, [refresh])
 
   const uploadLecture = useCallback(

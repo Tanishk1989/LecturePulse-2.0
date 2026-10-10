@@ -10,6 +10,7 @@ import { useExamFocus } from '@/hooks/useExamFocus'
 import { formatExamFocusTime } from '@/lib/examFocus'
 import { ExamTipLine } from '@/components/exam-focus/ExamTipLine'
 import { cn } from '@/lib/utils'
+import { DataLoadError } from '@/components/dashboard/ui/DataLoadError'
 
 function ExamFocusBackground() {
   const prefersReducedMotion = useReducedMotion()
@@ -41,7 +42,7 @@ function ExamFocusBackground() {
 }
 
 export function ExamFocusPage() {
-  const { insights, loading } = useExamFocus()
+  const { insights, loading, error, refresh } = useExamFocus()
   const {
     focusAreas,
     upcomingTopic,
@@ -54,6 +55,13 @@ export function ExamFocusPage() {
     commonMistakes,
     hasData,
   } = insights
+
+  if (error && !loading) {
+    return <DashboardPageShell>
+      <DashboardPageHeader title="Exam Focus" description="Preparation built from your smart notes and flashcards." />
+      <DataLoadError message={error} onRetry={refresh} />
+    </DashboardPageShell>
+  }
 
   return (
     <DashboardPageShell>

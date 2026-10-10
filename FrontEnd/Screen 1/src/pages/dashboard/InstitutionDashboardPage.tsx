@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { AlertTriangle, BarChart3, Loader2, Users } from 'lucide-react'
 import { FadeUp } from '@/components/effects/FadeUp'
 import { DashboardPageHeader, DashboardPageShell } from '@/components/dashboard/ui/DashboardPageShell'
@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/dashboard/ui/Skeleton'
 import { fetchInstitutionAnalytics, type InstitutionAnalytics } from '@/services/analyticsService'
 import { useI18n } from '@/context/I18nContext'
 import { cn } from '@/lib/utils'
+import { DataLoadError } from '@/components/dashboard/ui/DataLoadError'
 
 export function InstitutionDashboardPage() {
   const { translate } = useI18n()
@@ -13,12 +14,16 @@ export function InstitutionDashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    void fetchInstitutionAnalytics()
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    await fetchInstitutionAnalytics()
       .then(setData)
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load analytics.'))
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => { void loadData() }, [loadData])
 
   return (
     <DashboardPageShell className="space-y-8">
@@ -35,7 +40,7 @@ export function InstitutionDashboardPage() {
           <Skeleton className="h-64 w-full rounded-2xl" />
         </div>
       ) : error ? (
-        <div className="rounded-2xl border border-red/20 bg-red/[0.06] p-6 text-sm text-red-200">{error}</div>
+        <DataLoadError title="Institution analytics unavailable" message={error} onRetry={loadData} />
       ) : data ? (
         <>
           <FadeUp delay={0.05}>

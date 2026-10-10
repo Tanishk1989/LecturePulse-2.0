@@ -30,6 +30,7 @@ import {
 } from '@/services/lectureQuizService'
 
 import { cn } from '@/lib/utils'
+import { DataLoadError } from '@/components/dashboard/ui/DataLoadError'
 
 
 
@@ -40,7 +41,7 @@ export function QuizPage() {
   const { toast } = useToast()
   const { translate } = useI18n()
 
-  const { lectures, loading } = useLectures()
+  const { lectures, loading, error, refresh } = useLectures()
 
   const [lectureId, setLectureId] = useState<string>('')
 
@@ -205,6 +206,13 @@ export function QuizPage() {
   )
 
 
+
+  if (error && !loading) {
+    return <DashboardPageShell>
+      <DashboardPageHeader title={translate('quiz.title')} description={translate('quiz.description')} />
+      <DataLoadError title="Couldn't load quiz lectures" message={error} onRetry={refresh} />
+    </DashboardPageShell>
+  }
 
   return (
 

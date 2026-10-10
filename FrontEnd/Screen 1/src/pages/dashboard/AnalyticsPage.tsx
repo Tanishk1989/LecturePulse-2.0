@@ -7,9 +7,10 @@ import { useStudyMetrics } from '@/hooks/useStudyMetrics'
 import { useLectures } from '@/hooks/useLectures'
 import { formatStudyMinutes } from '@/lib/studyMetrics'
 import { cn } from '@/lib/utils'
+import { DataLoadError } from '@/components/dashboard/ui/DataLoadError'
 
 export function AnalyticsPage() {
-  const { metrics, activity, loading } = useStudyMetrics()
+  const { metrics, activity, loading, error, refresh } = useStudyMetrics()
   const { lectures } = useLectures()
 
   // Calculate lecture source distribution
@@ -38,6 +39,13 @@ export function AnalyticsPage() {
   const completionRate = metrics.totalCards > 0 
     ? Math.round((metrics.masteredCards / metrics.totalCards) * 100) 
     : 0
+
+  if (error && !loading) {
+    return <DashboardPageShell>
+      <DashboardPageHeader title="Analytics" description="Insights into your learning patterns and progress." />
+      <DataLoadError message={error} onRetry={refresh} />
+    </DashboardPageShell>
+  }
 
   if (loading) {
     return (

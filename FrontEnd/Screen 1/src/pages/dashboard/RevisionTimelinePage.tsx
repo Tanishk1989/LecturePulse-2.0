@@ -7,6 +7,7 @@ import { useStudyMetrics } from '@/hooks/useStudyMetrics'
 import { formatRelativeDate } from '@/lib/formatDuration'
 import { useI18n } from '@/context/I18nContext'
 import { cn } from '@/lib/utils'
+import { DataLoadError } from '@/components/dashboard/ui/DataLoadError'
 
 const bucketAccent: Record<string, string> = {
   overdue: 'border-red-400/30 bg-red-400/[0.06] text-red-300',
@@ -17,10 +18,17 @@ const bucketAccent: Record<string, string> = {
 }
 
 export function RevisionTimelinePage() {
-  const { revisionBuckets, lectureTitles, loading, metrics } = useStudyMetrics()
+  const { revisionBuckets, lectureTitles, loading, metrics, error, refresh } = useStudyMetrics()
   const { translate } = useI18n()
   const dueCount = metrics.reviewsDue
   const scheduledCount = revisionBuckets.reduce((total, bucket) => total + bucket.cards.length, 0)
+
+  if (error && !loading) {
+    return <DashboardPageShell>
+      <DashboardPageHeader title={translate('revision.title')} description={translate('revision.description')} />
+      <DataLoadError message={error} onRetry={refresh} />
+    </DashboardPageShell>
+  }
 
   return (
     <DashboardPageShell>
@@ -35,15 +43,15 @@ export function RevisionTimelinePage() {
         <div className="grid sm:grid-cols-3 gap-3">
           <div className="rounded-2xl border border-accent/20 bg-accent/[0.06] p-5">
             <p className="text-xs uppercase tracking-wider text-muted">{translate('revision.dueNow')}</p>
-            <p className="mt-2 font-heading text-3xl text-accent">{dueCount}</p>
+            <p className="mt-2 font-heading text-3xl text-accent">{loading ? '—' : dueCount}</p>
           </div>
           <div className="rounded-2xl border border-white/[0.08] bg-card/80 p-5">
             <p className="text-xs uppercase tracking-wider text-muted">{translate('revision.scheduled')}</p>
-            <p className="mt-2 font-heading text-3xl text-foreground">{scheduledCount}</p>
+            <p className="mt-2 font-heading text-3xl text-foreground">{loading ? '—' : scheduledCount}</p>
           </div>
           <div className="rounded-2xl border border-white/[0.08] bg-card/80 p-5">
             <p className="text-xs uppercase tracking-wider text-muted">{translate('revision.mastered')}</p>
-            <p className="mt-2 font-heading text-3xl text-emerald">{metrics.masteredCards}</p>
+            <p className="mt-2 font-heading text-3xl text-emerald">{loading ? '—' : metrics.masteredCards}</p>
           </div>
         </div>
       </FadeUp>

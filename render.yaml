@@ -15,7 +15,7 @@ services:
         sync: false
       - key: GROQ_API_KEY
         sync: false
-      - key: FIREBASE_SERVICE_ACCOUNT_KEY
+      - key: FIREBASE_PROJECT_ID
         sync: false
       - key: SUPABASE_URL
         sync: false

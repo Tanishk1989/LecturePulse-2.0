@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuthContext } from '@/context/AuthContext'
 import { useToast } from '@/components/ui/ToastProvider'
 import {
@@ -14,29 +14,42 @@ export function useFlashcards() {
   const { toast } = useToast()
   const [flashcards, setFlashcards] = useState<Flashcard[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const owner = useRef<string | null>(null)
+  const request = useRef(0)
 
   const refresh = useCallback(async () => {
+    const version = ++request.current
+    if (owner.current !== (user?.uid ?? null)) {
+      owner.current = user?.uid ?? null
+      setFlashcards([])
+    }
     if (!user) {
       setFlashcards([])
+      setError(null)
       setLoading(false)
       return
     }
 
     setLoading(true)
+    setError(null)
     try {
       const rows = await getUserFlashcards(user.uid)
+      if (version !== request.current) return
       setFlashcards(rows)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load flashcards.'
+    } catch (err) {
+      if (version !== request.current) return
+      const message = err instanceof Error ? err.message : 'Failed to load flashcards.'
+      setError(message)
       toast.error(message)
-      setFlashcards([])
     } finally {
-      setLoading(false)
+      if (version === request.current) setLoading(false)
     }
   }, [toast, user])
 
   useEffect(() => {
     void refresh()
+    return () => { request.current += 1 }
   }, [refresh])
 
   const saveFlashcards = useCallback(
@@ -98,6 +111,7 @@ export function useFlashcards() {
   return {
     flashcards,
     loading,
+    error,
     refresh,
     saveFlashcards,
     reviewCard,

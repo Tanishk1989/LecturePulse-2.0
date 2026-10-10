@@ -25,10 +25,12 @@ import {
 } from '@/services/examCountdownService'
 import { useToast } from '@/components/ui/ToastProvider'
 import { cn } from '@/lib/utils'
+import { DataLoadError } from '@/components/dashboard/ui/DataLoadError'
 
 export function ExamCountdownPage() {
   const [data, setData] = useState<ExamCountdownData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [showConfig, setShowConfig] = useState(false)
   const [examTitle, setExamTitle] = useState('')
   const [examDateStr, setExamDateStr] = useState('')
@@ -37,6 +39,8 @@ export function ExamCountdownPage() {
   const { toast } = useToast()
 
   const loadData = async () => {
+    setLoading(true)
+    setError(null)
     try {
       const res = await getExamCountdownData()
       setData(res)
@@ -45,7 +49,7 @@ export function ExamCountdownPage() {
         setExamDateStr(res.exam.date.split('T')[0])
       }
     } catch (err) {
-      console.error('Failed to load exam countdown data:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load exam countdown data.')
     } finally {
       setLoading(false)
     }
@@ -290,6 +294,13 @@ export function ExamCountdownPage() {
     if (daysRemaining <= 14) return 'Every minute counts now. Keep polishing your weak concepts!'
     if (daysRemaining <= 30) return 'Consistency is key. Keep showing up. Small efforts compound.'
     return 'Great foundations are built slowly. Stay steady, study smart.'
+  }
+
+  if (!loading && (error || !data)) {
+    return <DashboardPageShell>
+      <DashboardPageHeader title="Exam Countdown" description="Track your exam and learning consistency." />
+      <DataLoadError message={error || 'Countdown data is unavailable.'} onRetry={loadData} />
+    </DashboardPageShell>
   }
 
   if (loading) {

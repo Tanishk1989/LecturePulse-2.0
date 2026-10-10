@@ -10,6 +10,7 @@ import { useUserNotes } from '@/hooks/useUserNotes'
 import { getTranscriptLectureIds } from '@/services/transcriptionService'
 import { useAuthContext } from '@/context/AuthContext'
 import { cn } from '@/lib/utils'
+import { DataLoadError } from '@/components/dashboard/ui/DataLoadError'
 
 function StatPill({
   label,
@@ -47,24 +48,28 @@ function StatPill({
 
 export function SmartNotesPage() {
   const { user } = useAuthContext()
-  const { lectures, loading: lecturesLoading } = useLectures()
-  const { notes, loading: notesLoading } = useUserNotes()
+  const { lectures, loading: lecturesLoading, error: lecturesError, refresh: refreshLectures } = useLectures()
+  const { notes, loading: notesLoading, error: notesError, refresh: refreshNotes } = useUserNotes()
   const [transcriptIds, setTranscriptIds] = useState<Set<string>>(new Set())
   const [transcriptsLoading, setTranscriptsLoading] = useState(true)
+  const [transcriptError, setTranscriptError] = useState<string | null>(null)
+  const [retry, setRetry] = useState(0)
 
   useEffect(() => {
     if (!user) {
       setTranscriptIds(new Set())
+      setTranscriptError(null)
       setTranscriptsLoading(false)
       return
     }
 
     setTranscriptsLoading(true)
+    setTranscriptError(null)
     void getTranscriptLectureIds(user.uid)
       .then(setTranscriptIds)
-      .catch(() => setTranscriptIds(new Set()))
+      .catch((err) => setTranscriptError(err instanceof Error ? err.message : 'Failed to load transcripts.'))
       .finally(() => setTranscriptsLoading(false))
-  }, [user, lectures.length])
+  }, [user, lectures.length, retry])
 
   const notesByLecture = useMemo(
     () => new Map(notes.map((entry) => [entry.lectureId, entry])),
@@ -74,6 +79,7 @@ export function SmartNotesPage() {
   const stats = useMemo(() => notesHubStats(notes), [notes])
 
   const loading = lecturesLoading || notesLoading || transcriptsLoading
+  const error = lecturesError || notesError || transcriptError
 
   return (
     <DashboardPageShell>
@@ -84,7 +90,7 @@ export function SmartNotesPage() {
         />
       </FadeUp>
 
-      {!loading && lectures.length > 0 && (
+      {!loading && !error && lectures.length > 0 && (
         <FadeUp delay={0.05}>
           <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <StatPill label="Total notes" value={stats.total} icon={FileText} tone="accent" />
@@ -103,6 +109,11 @@ export function SmartNotesPage() {
             </FadeUp>
           ))}
         </div>
+      ) : error ? (
+        <DataLoadError title="Couldn't load smart notes" message={error} onRetry={async () => {
+          setRetry((value) => value + 1)
+          await Promise.all([refreshLectures(), refreshNotes()])
+        }} />
       ) : lectures.length === 0 ? (
         <NotesHubEmptyState />
       ) : (

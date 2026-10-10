@@ -28,15 +28,18 @@ import { isFfmpegAvailable } from './services/audioConvertService'
 import { isBundledYouTubeDownloaderAvailable } from './services/youtubeService'
 import { initializePersistenceSchema } from './services/persistenceSchema'
 import { recoverProcessingJobs, startProcessingWorker } from './services/processingQueue'
+import { createReadiness } from './services/readiness'
 
 ensureUploadDirs()
 
 const app = express()
 const PORT = process.env.PORT || 5000
 const audioConversionAvailable = isFfmpegAvailable()
+const readiness = createReadiness()
 
 app.use(cors())
 app.use(express.json({ limit: '128kb' }))
+app.use('/api', readiness.guard)
 
 app.use('/uploads', mediaRouter)
 
@@ -60,7 +63,7 @@ app.use('/api/push', pushRouter)
 app.get('/', (_req, res) => {
   res.json({
     name: 'LecturePulse API',
-    status: 'running',
+    status: readiness.isReady() ? 'running' : 'unavailable',
     docs: 'All routes are under /api',
     health: '/api/health',
     database: '/api/health/db',
@@ -68,7 +71,17 @@ app.get('/', (_req, res) => {
 })
 
 app.get('/api/health', (_req, res) => {
+  if (!readiness.isReady()) {
+    const failure = readiness.failure()
+    res.setHeader('Retry-After', '30')
+    res.status(503).json({ status: 'unhealthy', code: failure.code, error: failure.message })
+    return
+  }
   res.json({ status: 'healthy', storage: storageMode(), processingQueue: 'postgres', accountSync: 'postgres', aiLimits: 'postgres', push: 'web-push', auth: 'public-key-verification', audioConversion: audioConversionAvailable, youtubeDownloader: isBundledYouTubeDownloaderAvailable(), revision: process.env.RENDER_GIT_COMMIT?.slice(0, 7), timestamp: new Date().toISOString() })
+})
+
+app.get('/api/live', (_req, res) => {
+  res.json({ status: 'running', ready: readiness.isReady() })
 })
 
 app.get('/api/health/db', async (_req, res) => {
@@ -100,8 +113,8 @@ async function connectDatabase(maxAttempts = 5): Promise<void> {
       console.log('Database connection: OK')
       return
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      console.error(`Database connection attempt ${attempt} failed:`, message)
+      const resolved = resolveApiError(error, 'Database connection failed.')
+      console.error(`Database connection attempt ${attempt} failed:`, resolved.code)
 
       if (attempt < maxAttempts) {
         const delayMs = 4000 * attempt
@@ -111,7 +124,7 @@ async function connectDatabase(maxAttempts = 5): Promise<void> {
       }
 
       console.error(
-        'Database connection: FAILED after all retries. Check DATABASE_URL on Render; use the Supabase shared pooler if the direct database host is unreachable.',
+        'Database connection: FAILED. Verify DATABASE_URL and database credentials on Render.',
       )
       throw error
     }
@@ -119,25 +132,50 @@ async function connectDatabase(maxAttempts = 5): Promise<void> {
 }
 
 async function startServer() {
-  try {
-    await initializeStorage()
-    await connectDatabase()
-    await initializePersistenceSchema()
-    await initializePushKeys()
-    await recoverProcessingJobs()
-  } catch {
-    process.exit(1)
-  }
+  let stopped = false
+  let retryTimer: ReturnType<typeof setTimeout> | undefined
+  let stopWorkers = () => {}
 
-  app.listen(PORT, () => {
-    const stopWorker = startProcessingWorker()
-    const stopPush = startPushWorker()
-    const stop = () => { stopWorker();stopPush() }
-    process.once('SIGTERM', stop)
-    process.once('SIGINT', stop)
+  // Bind immediately so dependency failures return an explicit 503, not an endless timeout.
+  // /api/health remains a readiness check and never reports a failed initialization as healthy.
+  const server = app.listen(PORT, () => {
     console.log(`LecturePulse 2.0 Backend listening on port ${PORT}`)
     console.log(`Local uploads served from ${path.resolve(UPLOADS_ROOT)}`)
   })
+
+  const initialize = async () => {
+    try {
+      await initializeStorage()
+      await connectDatabase(1)
+      await initializePersistenceSchema()
+      await initializePushKeys()
+      await recoverProcessingJobs()
+      if (stopped) return
+      const stopWorker = startProcessingWorker()
+      const stopPush = startPushWorker()
+      stopWorkers = () => { stopWorker(); stopPush() }
+      readiness.markReady()
+      console.log('Service initialization: READY')
+    } catch (error) {
+      readiness.markFailed(error)
+      console.error('Service initialization failed:', readiness.failure().code)
+      // Repeated invalid-password attempts can cause Supabase to ban the instance IP.
+      // Credentials are loaded at boot; a corrected Render secret triggers a fresh deploy.
+      if (!stopped && readiness.failure().code !== 'DB_AUTH_FAILED') {
+        retryTimer = setTimeout(() => { void initialize() }, 30_000)
+      }
+    }
+  }
+
+  const stop = () => {
+    stopped = true
+    if (retryTimer) clearTimeout(retryTimer)
+    stopWorkers()
+    server.close(() => { void prisma.$disconnect() })
+  }
+  process.once('SIGTERM', stop)
+  process.once('SIGINT', stop)
+  await initialize()
 }
 
 void startServer()
