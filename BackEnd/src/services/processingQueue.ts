@@ -92,10 +92,13 @@ export async function runProcessingQueueOnce() {
     } catch {
       // No raw provider/database details are persisted in queue metadata.
       await prisma.$executeRaw`
-        UPDATE processing_jobs SET state=CASE WHEN attempts<3 THEN 'queued' ELSE 'failed' END,
+        WITH failed_job AS (UPDATE processing_jobs SET state=CASE WHEN attempts<3 THEN 'queued' ELSE 'failed' END,
           available_at=NOW()+INTERVAL '30 seconds',lease_until=NULL,lease_token=NULL,
           last_error='Processing failed. Please retry if automatic recovery does not succeed.',updated_at=NOW()
-        WHERE lecture_id=${job.lectureId} AND lease_token=${token}`
+        WHERE lecture_id=${job.lectureId} AND lease_token=${token}
+        RETURNING lecture_id,user_id,state)
+        UPDATE lectures l SET status='failed' FROM failed_job j
+        WHERE j.state='failed' AND l.id=j.lecture_id AND l.user_id=j.user_id AND l.status='processing'`
     } finally { clearInterval(heartbeat);await releaseAiPermit(permit.token).catch(() => {}) }
   } catch { console.error('[ProcessingQueue] Worker check failed; it will retry.') }
   finally { working = false }

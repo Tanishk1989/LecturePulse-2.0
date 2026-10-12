@@ -20,7 +20,10 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =>
       where: { userId },
       orderBy: { createdAt: 'desc' },
     })
-    res.json(lectures.map(lecture => ({ ...lecture, fileUrl: getAccessibleFileUrl(lecture.fileUrl, userId) })))
+    const activeJobs = await prisma.$queryRaw<Array<{ lecture_id: string }>>`
+      SELECT lecture_id FROM processing_jobs WHERE user_id=${userId} AND state IN ('queued','running')`
+    const activeIds = new Set(activeJobs.map(job => job.lecture_id))
+    res.json(lectures.map(lecture => ({ ...lecture, status: activeIds.has(lecture.id) ? 'processing' : lecture.status, fileUrl: getAccessibleFileUrl(lecture.fileUrl, userId) })))
   } catch (error) {
     return sendRouteError(res, error, 'Failed to retrieve lectures.')
   }
@@ -49,7 +52,7 @@ router.get('/:id/processing-status', requireAuth, async (req: AuthenticatedReque
       }),
       prisma.lectureNote.findFirst({
         where: { lectureId: id, userId },
-        select: { status: true },
+        select: { id: true, status: true, updatedAt: true },
       }),
     ])
 
@@ -59,7 +62,7 @@ router.get('/:id/processing-status', requireAuth, async (req: AuthenticatedReque
 
     const job = await getProcessingJob(id, userId)
     if (job?.state === 'queued' || job?.state === 'running') {
-      return res.json({ ...deriveProcessingStatus('processing', transcriptStatus === 'failed' ? null : transcriptStatus, notesStatus),
+      return res.json({ ...deriveProcessingStatus('processing', transcriptStatus === 'failed' ? null : transcriptStatus, notesStatus === 'failed' ? null : notesStatus),
         isProcessing: true, message: job.state === 'queued' ? 'Lecture queued for processing or automatic recovery…' : 'Processing your lecture…' })
     }
     if (job?.state === 'failed') {
@@ -68,13 +71,14 @@ router.get('/:id/processing-status', requireAuth, async (req: AuthenticatedReque
 
     let derived = deriveProcessingStatus(lectureStatus, transcriptStatus, notesStatus)
 
-    const lastActivity = transcript?.updatedAt ?? lecture.updatedAt
+    const lastActivity = new Date(Math.max(...[lecture.updatedAt, transcript?.updatedAt, notes?.updatedAt]
+      .filter((date): date is Date => date instanceof Date).map(date => date.getTime())))
     if (derived.isProcessing && isProcessingStale(lastActivity)) {
       await prisma.lecture.update({
         where: { id },
         data: { status: 'failed' },
       })
-      if (transcript) {
+      if (transcript && (transcript.status === 'processing' || transcript.status.startsWith('transcribing'))) {
         await prisma.transcript.update({
           where: { id: transcript.id },
           data: {
@@ -83,8 +87,14 @@ router.get('/:id/processing-status', requireAuth, async (req: AuthenticatedReque
           },
         }).catch(() => {})
       }
+      if (notes?.status === 'generating') {
+        await prisma.lectureNote.update({
+          where: { id: notes.id },
+          data: { status: 'failed', errorMessage: 'Processing timed out. Please try again.' },
+        }).catch(() => {})
+      }
       lectureStatus = 'failed'
-      derived = deriveProcessingStatus('failed', 'failed', notesStatus)
+      derived = deriveProcessingStatus('failed', transcriptStatus, notesStatus === 'generating' ? 'failed' : notesStatus)
     }
 
     res.json(derived)

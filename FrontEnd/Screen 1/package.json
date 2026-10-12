@@ -5,6 +5,7 @@
   "type": "module",
   "overrides": { "@grpc/grpc-js": "~1.13.6" },
   "scripts": {
+    "test:processing-status": "node --test scripts/test-processing-status.mjs",
     "test:features": "node --test scripts/test-feature-recovery.mjs scripts/test-collection-recovery.mjs",
     "test:push": "node --test scripts/test-push-worker.mjs",
     "test:sync": "node --test scripts/test-account-sync.mjs",

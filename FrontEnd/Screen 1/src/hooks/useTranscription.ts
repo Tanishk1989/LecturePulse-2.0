@@ -15,7 +15,6 @@ import {
   isBackgroundProcessingAvailable,
 } from '@/services/processingService'
 import { getProcessingOptions } from '@/lib/processingPreferences'
-import { updateLecture } from '@/services/lectureService'
 import type { Transcript } from '@/types/transcript'
 
 export type TranscriptionPhase =
@@ -198,15 +197,11 @@ export function useTranscription(
 
   const retryTranscription = useCallback(async () => {
     if (!user || !lectureId) return
+    if (transcribingRef.current) return
+    transcribingRef.current = true
 
-    try {
-      await updateLecture(user.uid, lectureId, { status: 'uploaded' })
-      onLectureStatusChange?.()
-    } catch {
-      // continue with retry even if status reset fails
-    }
-
-    autoStartedRef.current = false
+    autoStartedRef.current = true
+    setError(null)
     setIsBackgroundProcessing(true)
     setPhase('transcribing')
     setTranscriptionProgress({ stage: 'transcribing', progress: 20, step: 'transcribing' })
@@ -214,15 +209,20 @@ export function useTranscription(
     try {
       await enqueueLectureProcessing(lectureId, {
         generateNotes: true,
-        forceRetranscribe: true,
+        // Retrying notes/provider failures must not discard a completed transcript.
+        forceRetranscribe: false,
         ...getProcessingOptions(user.uid),
       })
+      onLectureStatusChange?.()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Processing failed.'
       setError(message)
       setPhase('failed')
       setIsBackgroundProcessing(false)
+      setTranscriptionProgress(null)
       toast.error(message)
+    } finally {
+      transcribingRef.current = false
     }
   }, [lectureId, onLectureStatusChange, toast, user])
 

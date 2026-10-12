@@ -66,9 +66,10 @@ function getLectureStatusTextColor(lecture: LectureRecording): string {
     case 'failed':
       return 'text-red font-medium'
     case 'processing':
+      return 'text-accent font-medium animate-pulse'
     case 'uploaded':
     default:
-      return 'text-accent font-medium animate-pulse'
+      return 'text-accent font-medium'
   }
 }
 
@@ -155,18 +156,14 @@ export function LectureCard({
                   onDoubleClick={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
-                    if (lecture.status !== 'processing' && lecture.status !== 'uploaded') {
+                    if (lecture.status !== 'processing') {
                       setIsEditing(true)
                     }
                   }}
                 >
-                  {lecture.status === 'processing' || lecture.status === 'uploaded' ? (
-                    <span className="text-muted/60 italic animate-pulse">Generating title...</span>
-                  ) : (
-                    lecture.title
-                  )}
+                  {lecture.title || 'Untitled lecture'}
                 </h3>
-                {lecture.status !== 'processing' && lecture.status !== 'uploaded' && (
+                {lecture.status !== 'processing' && (
                   <button
                     type="button"
                     onClick={(e) => {

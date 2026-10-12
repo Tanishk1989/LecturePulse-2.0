@@ -10,7 +10,7 @@ export interface LectureProcessingStatus {
   transcriptStatus: string | null
   notesStatus: string | null
   isProcessing: boolean
-  stage?: 'transcribing' | 'generating_notes' | 'ready' | 'failed'
+  stage?: 'not_started' | 'transcribing' | 'generating_notes' | 'ready' | 'failed'
   message?: string
   progressPercent?: number
 }

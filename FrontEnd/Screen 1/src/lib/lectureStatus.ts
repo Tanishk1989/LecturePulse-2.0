@@ -3,7 +3,7 @@ import type { LectureRecording } from '@/types/lecture'
 export function getLectureStatusLabel(lecture: LectureRecording): string {
   switch (lecture.status) {
     case 'uploaded':
-      return 'Preparing'
+      return 'Not started'
     case 'processing':
       return 'Processing'
     case 'completed':

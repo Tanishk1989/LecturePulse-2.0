@@ -5,15 +5,8 @@ import { getFileTypeLabel, getLectureMediaKind } from '@/lib/lectureFilters'
 import type { LectureRecording } from '@/types/lecture'
 import type { LectureNotes } from '@/types/notes'
 import { cn } from '@/lib/utils'
-
-export type NotesHubStatus =
-  | 'needs_pdf_text'
-  | 'needs_transcript'
-  | 'processing_lecture'
-  | 'ready'
-  | 'generating'
-  | 'failed'
-  | 'no_notes'
+import { resolveHubStatus, type NotesHubStatus } from '@/lib/notesHubStatus'
+export type { NotesHubStatus } from '@/lib/notesHubStatus'
 
 interface NotesHubCardProps {
   lecture: LectureRecording
@@ -21,26 +14,24 @@ interface NotesHubCardProps {
   hasTranscript: boolean
 }
 
-function resolveHubStatus(
-  lecture: LectureRecording,
-  notes: LectureNotes | null,
-  hasTranscript: boolean,
-): NotesHubStatus {
-  if (getLectureMediaKind(lecture) === 'pdf' && !hasTranscript) return 'needs_pdf_text'
-  if (!hasTranscript) {
-    if (lecture.status === 'processing') return 'processing_lecture'
-    return 'needs_transcript'
-  }
-  if (!notes) return 'no_notes'
-  if (notes.status === 'completed') return 'ready'
-  if (notes.status === 'failed') return 'failed'
-  return 'generating'
-}
-
 const statusConfig: Record<
   NotesHubStatus,
   { label: string; container: string; dot: string; action: string; href: (id: string) => string }
 > = {
+  not_started: {
+    label: 'Not started',
+    container: 'border-accent/20 bg-accent/[0.08] text-accent',
+    dot: 'bg-accent',
+    action: 'Start Processing',
+    href: (id) => `/transcript/${id}`,
+  },
+  lecture_failed: {
+    label: 'Failed',
+    container: 'border-red/20 bg-red/[0.08] text-red',
+    dot: 'bg-red',
+    action: 'Retry Processing',
+    href: (id) => `/transcript/${id}`,
+  },
   ready: {
     label: 'Ready',
     container: 'border-emerald/20 bg-emerald/[0.08] text-emerald',
@@ -70,10 +61,10 @@ const statusConfig: Record<
     href: (id) => `/notes/${id}`,
   },
   needs_transcript: {
-    label: 'Preparing',
+    label: 'Transcript missing',
     container: 'border-white/[0.1] bg-white/[0.04] text-muted',
     dot: 'bg-muted',
-    action: 'View Progress',
+    action: 'Start Processing',
     href: (id) => `/transcript/${id}`,
   },
   processing_lecture: {
@@ -108,10 +99,11 @@ function summaryPreview(notes: LectureNotes | null, status: NotesHubStatus): str
 }
 
 export function NotesHubCard({ lecture, notes, hasTranscript }: NotesHubCardProps) {
-  const status = resolveHubStatus(lecture, notes, hasTranscript)
+  const isPdf = getLectureMediaKind(lecture) === 'pdf'
+  const status = resolveHubStatus(lecture.status, notes?.status ?? null, hasTranscript, isPdf)
   const config = statusConfig[status]
   const preview = summaryPreview(notes, status)
-  const href = config.href(lecture.id)
+  const href = status === 'lecture_failed' && isPdf ? `/notes/${lecture.id}` : config.href(lecture.id)
 
   return (
     <article
@@ -141,11 +133,7 @@ export function NotesHubCard({ lecture, notes, hasTranscript }: NotesHubCardProp
           </div>
 
           <h3 className="truncate text-base font-semibold text-foreground">
-            {lecture.status === 'processing' || lecture.status === 'uploaded' ? (
-              <span className="text-muted/60 italic animate-pulse">Generating title...</span>
-            ) : (
-              lecture.title
-            )}
+            {lecture.title || 'Untitled lecture'}
           </h3>
 
           <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
@@ -162,10 +150,17 @@ export function NotesHubCard({ lecture, notes, hasTranscript }: NotesHubCardProp
             <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-muted">{preview}</p>
           )}
 
-          {(status === 'needs_transcript' || status === 'processing_lecture') && (
+          {status === 'processing_lecture' && (
             <p className="mt-3 text-sm text-muted">
               Smart notes will appear once processing finishes.
             </p>
+          )}
+
+          {(status === 'not_started' || status === 'needs_transcript') && (
+            <p className="mt-3 text-sm text-muted">Processing has not started. Open this lecture to start transcription and notes.</p>
+          )}
+          {status === 'lecture_failed' && (
+            <p className="mt-3 text-sm text-muted">Processing failed. Open the lecture to retry. If the original file is unavailable, upload it again.</p>
           )}
 
           {status === 'needs_pdf_text' && (
@@ -192,6 +187,8 @@ export function NotesHubCard({ lecture, notes, hasTranscript }: NotesHubCardProp
             {(status === 'ready' ||
               status === 'no_notes' ||
               status === 'failed' ||
+              status === 'lecture_failed' ||
+              status === 'not_started' ||
               status === 'needs_pdf_text') && <FileText className="h-4 w-4" />}
             {config.action}
             <ArrowRight className="h-4 w-4" />

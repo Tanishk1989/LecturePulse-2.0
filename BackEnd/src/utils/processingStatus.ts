@@ -5,14 +5,14 @@ export interface DerivedProcessingStatus {
   transcriptStatus: string | null
   notesStatus: string | null
   isProcessing: boolean
-  stage: 'transcribing' | 'generating_notes' | 'ready' | 'failed'
+  stage: 'not_started' | 'transcribing' | 'generating_notes' | 'ready' | 'failed'
   message: string
   progressPercent: number
 }
 
 function isTranscriptBusy(lectureStatus: string, transcriptStatus: string | null): boolean {
   return (
-    lectureStatus === 'processing' ||
+    (lectureStatus === 'processing' && transcriptStatus !== 'completed') ||
     transcriptStatus === 'processing' ||
     Boolean(transcriptStatus?.startsWith('transcribing'))
   )
@@ -23,14 +23,14 @@ export function deriveProcessingStatus(
   transcriptStatus: string | null,
   notesStatus: string | null,
 ): DerivedProcessingStatus {
-  if (lectureStatus === 'failed' || transcriptStatus === 'failed') {
+  if (lectureStatus === 'failed' || transcriptStatus === 'failed' || notesStatus === 'failed') {
     return {
       lectureStatus,
       transcriptStatus,
       notesStatus,
       isProcessing: false,
       stage: 'failed',
-      message: '',
+      message: 'Processing failed. Please try again.',
       progressPercent: 0,
     }
   }
@@ -71,6 +71,20 @@ export function deriveProcessingStatus(
       stage: 'generating_notes',
       message: 'Generating smart notes…',
       progressPercent: 88,
+    }
+  }
+
+  if (lectureStatus === 'processing') {
+    return {
+      lectureStatus, transcriptStatus, notesStatus, isProcessing: true,
+      stage: 'generating_notes', message: 'Finishing lecture processing…', progressPercent: 85,
+    }
+  }
+
+  if (lectureStatus === 'uploaded' && transcriptStatus !== 'completed') {
+    return {
+      lectureStatus, transcriptStatus, notesStatus, isProcessing: false,
+      stage: 'not_started', message: 'Processing has not started. Start processing to generate the transcript and notes.', progressPercent: 0,
     }
   }
 

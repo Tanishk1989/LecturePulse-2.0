@@ -12,6 +12,7 @@
     }
   },
   "scripts": {
+    "test:processing-status": "npm run build && node --test scripts/test-processing-status.mjs",
     "test:readiness": "npm run build && node --test scripts/test-readiness.mjs",
     "test:push-limits": "npm run build && node --test scripts/test-push-limits.mjs",
     "test:persistence": "npm run build && node --test scripts/test-persistence.mjs",
