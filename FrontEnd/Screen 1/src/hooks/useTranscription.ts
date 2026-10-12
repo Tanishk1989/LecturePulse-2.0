@@ -232,27 +232,11 @@ export function useTranscription(
     if (phase !== 'ready') return
 
     autoStartedRef.current = true
-
-    void (async () => {
-      const status = await getLectureProcessingStatus(user.uid, lectureId)
-
-      if (status.isProcessing) {
-        setIsBackgroundProcessing(true)
-        setPhase('transcribing')
-        setTranscriptionProgress({
-          stage: status.stage === 'generating_notes' ? 'saving' : 'transcribing',
-          progress: status.progressPercent ?? 50,
-          step: 'transcribing',
-          subtitle: status.message,
-        })
-        return
-      }
-
-      if (status.transcriptStatus === 'completed') return
-
-      await startTranscription()
-    })()
-  }, [autoTranscribe, canTranscribe, lectureId, phase, startTranscription, user])
+    // refresh already checked the combined status. A second request here left
+    // unstarted lectures on a fake loading screen and had no error recovery.
+    if (transcript?.status === 'completed') return
+    void startTranscription()
+  }, [autoTranscribe, canTranscribe, lectureId, phase, startTranscription, transcript?.status, user])
 
   const overallProgress = useMemo(
     () => computeOverallProgress(transcriptionProgress),

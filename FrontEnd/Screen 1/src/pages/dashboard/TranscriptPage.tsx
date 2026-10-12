@@ -108,6 +108,7 @@ export function TranscriptPage() {
     interimText,
     error,
     canTranscribe,
+    startTranscription,
     retryTranscription,
     refresh: refreshTranscript,
   } = useTranscription(lectureId, lecture?.audioUrl, {
@@ -314,7 +315,7 @@ export function TranscriptPage() {
   }
 
   const showTranscript = phase === 'completed' && transcript
-  const showLoading = isLoading || (phase === 'ready' && canTranscribe)
+  const showLoading = isLoading
   const showTranscribing = isTranscribing
   const showEmpty = !showTranscript && !showLoading && !showTranscribing && phase !== 'failed'
 
@@ -594,6 +595,12 @@ export function TranscriptPage() {
                         <RefreshCw className="h-4 w-4" />
                         Try Again
                       </button>
+                    </div>
+                  ) : phase === 'ready' && canTranscribe ? (
+                    <div className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
+                      <p className="text-lg font-semibold text-foreground">Processing has not started</p>
+                      <p className="mt-2 max-w-md text-sm text-muted">Start processing to create the transcript and smart notes.</p>
+                      <button type="button" onClick={() => void startTranscription()} className="mt-6 rounded-full bg-accent px-5 py-2.5 text-sm font-medium text-background hover:bg-accent-soft">Start Processing</button>
                     </div>
                   ) : showEmpty ? (
                     <TranscriptEmptyState message="Upload or record a lecture to begin." />
