@@ -11,6 +11,18 @@ const queue=require('../dist/services/processingQueue.js')
 const {deriveProcessingStatus}=require('../dist/utils/processingStatus.js')
 const router=require('../dist/routes/lectures.js').default
 const {providerRetryDelay,ProviderRateLimitError}=require('../dist/utils/providerRetry.js')
+const {chatBudget}=require('../dist/utils/chatBudget.js')
+
+test('chat requests have bounded completion budgets and GPT-OSS reduces reasoning overhead',()=>{
+  const small=chatBudget('openai/gpt-oss-120b','system','short input')
+  assert.equal(small.reasoning_effort,'low')
+  assert.equal(small.max_completion_tokens,4096)
+  const long=chatBudget('openai/gpt-oss-120b','s'.repeat(6000),'u'.repeat(8160))
+  assert.ok(long.max_completion_tokens<4096)
+  assert.ok(long.max_completion_tokens>128)
+  assert.equal(chatBudget('other-model','','').reasoning_effort,undefined)
+  assert.equal(chatBudget('openai/gpt-oss-120b','','',256).max_completion_tokens,256)
+})
 
 test('provider cooldowns honor Retry-After, survive safe error wrapping and have bounded defaults',()=>{
   assert.equal(providerRetryDelay({status:429,headers:{'retry-after':'120'}}),120)

@@ -178,6 +178,7 @@ async function generateNotesForChunk(
       jsonMode: true,
       temperature: attempt === 0 ? 0.2 : 0.1,
       outputLanguage,
+      maxCompletionTokens: 4096,
     })
 
     const parsed = parseJsonFromAi<StructuredNotesContent>(raw)

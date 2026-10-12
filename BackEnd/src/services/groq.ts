@@ -1,6 +1,7 @@
 import Groq from 'groq-sdk'
 import { File } from 'node:buffer'
 import { ProviderRateLimitError, providerRetryDelay } from '../utils/providerRetry'
+import { chatBudget } from '../utils/chatBudget'
 import {
   type AiOutputLanguage,
   MATCH_LECTURE_OUTPUT_RULE,
@@ -117,6 +118,7 @@ export async function groqChatCompletion(
     outputLanguage?: AiOutputLanguage
     transcriptOnly?: boolean
     skipEnhancement?: boolean
+    maxCompletionTokens?: number
   },
 ): Promise<string> {
   const enhancedPrompt = enhanceSystemPrompt(systemPrompt, {
@@ -125,9 +127,11 @@ export async function groqChatCompletion(
     skipEnhancement: options?.skipEnhancement,
   })
   const groq = getGroqClient()
+  const model = options?.model || getGroqChatModel()
   try {
     const completion = await groq.chat.completions.create({
-    model: options?.model || getGroqChatModel(),
+    model,
+    ...chatBudget(model, enhancedPrompt, userPrompt, options?.maxCompletionTokens),
     temperature: options?.temperature !== undefined ? options.temperature : 0.4,
     messages: [
       { role: 'system', content: enhancedPrompt },
