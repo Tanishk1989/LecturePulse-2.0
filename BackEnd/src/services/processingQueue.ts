@@ -2,8 +2,9 @@ import { randomUUID } from 'node:crypto'
 import { prisma } from '../config/db'
 import { triggerLectureProcessing, type ProcessLectureOptions } from './processingService'
 import { acquireAiPermit, releaseAiPermit, renewAiPermit } from './sharedAiLimit'
+import { providerRetryDelay } from '../utils/providerRetry'
 
-interface Job { lectureId: string; userId: string; options: ProcessLectureOptions; attempts: number }
+interface Job { lectureId: string; userId: string; options: ProcessLectureOptions & {_rateLimitRetries?: number}; attempts: number }
 let working = false
 let stopped = false
 let timer: ReturnType<typeof setInterval> | undefined
@@ -83,22 +84,29 @@ export async function runProcessingQueueOnce() {
     try {
       await assertActive()
       await triggerLectureProcessing(job.lectureId, job.userId, {
-        ...job.options, forceRetranscribe: job.attempts === 1 && job.options.forceRetranscribe === true, assertActive,
+        ...job.options, forceRetranscribe: job.attempts === 1 && job.options.forceRetranscribe === true && !job.options._rateLimitRetries, assertActive,
       })
       await assertActive()
       await prisma.$executeRaw`
         UPDATE processing_jobs SET state='completed',lease_until=NULL,lease_token=NULL,last_error=NULL,updated_at=NOW()
         WHERE lecture_id=${job.lectureId} AND lease_token=${token}`
-    } catch {
+    } catch (error) {
       // No raw provider/database details are persisted in queue metadata.
+      const retryDelay = providerRetryDelay(error)
+      const defer = retryDelay !== null && (job.options._rateLimitRetries ?? 0) < 3
+      const delaySeconds = defer ? retryDelay : 30
+      const options = defer ? {...job.options, _rateLimitRetries: (job.options._rateLimitRetries ?? 0) + 1} : job.options
+      const message = defer ? 'AI provider rate limit. Processing will resume after the cooldown.' : 'Processing failed. Please retry if automatic recovery does not succeed.'
       await prisma.$executeRaw`
-        WITH failed_job AS (UPDATE processing_jobs SET state=CASE WHEN attempts<3 THEN 'queued' ELSE 'failed' END,
-          available_at=NOW()+INTERVAL '30 seconds',lease_until=NULL,lease_token=NULL,
-          last_error='Processing failed. Please retry if automatic recovery does not succeed.',updated_at=NOW()
+        WITH failed_job AS (UPDATE processing_jobs SET state=CASE WHEN ${defer} OR attempts<3 THEN 'queued' ELSE 'failed' END,
+          attempts=CASE WHEN ${defer} THEN attempts-1 ELSE attempts END,options=${JSON.stringify(options)}::jsonb,
+          available_at=clock_timestamp()+${delaySeconds}*INTERVAL '1 second',lease_until=NULL,lease_token=NULL,
+          last_error=${message},updated_at=NOW()
         WHERE lecture_id=${job.lectureId} AND lease_token=${token}
         RETURNING lecture_id,user_id,state)
-        UPDATE lectures l SET status='failed' FROM failed_job j
-        WHERE j.state='failed' AND l.id=j.lecture_id AND l.user_id=j.user_id AND l.status='processing'`
+        UPDATE lectures l SET status=CASE WHEN ${defer} THEN 'processing' ELSE 'failed' END FROM failed_job j
+        WHERE l.id=j.lecture_id AND l.user_id=j.user_id AND
+          ((${defer} AND j.state='queued' AND l.status IN ('processing','failed')) OR (j.state='failed' AND l.status='processing'))`
     } finally { clearInterval(heartbeat);await releaseAiPermit(permit.token).catch(() => {}) }
   } catch { console.error('[ProcessingQueue] Worker check failed; it will retry.') }
   finally { working = false }

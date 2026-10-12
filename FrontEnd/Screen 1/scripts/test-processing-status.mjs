@@ -64,4 +64,12 @@ test('unstarted transcription begins directly and duplicate retries preserve the
   assert.equal(calls.length,2,'duplicate retry clicks enqueue only once')
   assert.equal(calls[1].options.forceRetranscribe,false)
   release();await retry
+  dependencies['@/services/transcriptionService'].getTranscriptByLectureId=async()=>({status:'completed',text:'Saved transcript'})
+  dependencies['@/services/processingService'].getLectureProcessingStatus=async()=>({isProcessing:false,stage:'failed'})
+  await hook.refresh()
+  index=0
+  const recovered=exports.useTranscription('owned','https://www.youtube.com/watch?v=abcdefghijk')
+  assert.equal(recovered.phase,'completed','a notes failure must not hide a completed transcript')
+  assert.equal(recovered.transcript.text,'Saved transcript')
+  assert.match(recovered.error,/transcript is ready/)
 })

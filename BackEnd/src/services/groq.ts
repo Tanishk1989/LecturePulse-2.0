@@ -1,5 +1,6 @@
 import Groq from 'groq-sdk'
 import { File } from 'node:buffer'
+import { ProviderRateLimitError, providerRetryDelay } from '../utils/providerRetry'
 import {
   type AiOutputLanguage,
   MATCH_LECTURE_OUTPUT_RULE,
@@ -142,7 +143,9 @@ export async function groqChatCompletion(
 
     return content
   } catch (error) {
-    throw new Error(formatGroqError(error))
+    const message = formatGroqError(error)
+    const delay = providerRetryDelay(error)
+    throw delay === null ? new Error(message) : new ProviderRateLimitError(message, delay)
   }
 }
 
@@ -187,6 +190,8 @@ export async function groqTranscribeBuffer(
 
     return transcription as any
   } catch (error) {
-    throw new Error(formatGroqError(error))
+    const message = formatGroqError(error)
+    const delay = providerRetryDelay(error)
+    throw delay === null ? new Error(message) : new ProviderRateLimitError(message, delay)
   }
 }

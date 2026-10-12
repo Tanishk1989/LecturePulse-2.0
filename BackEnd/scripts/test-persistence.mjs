@@ -122,6 +122,17 @@ test('real PostgreSQL queue: atomic deduplication, recovery, bounded retries and
       })
       await queue.runProcessingQueueOnce()
       assert.equal((await queue.getProcessingJob('job','alice')).state,'running')
+      // A provider cooldown does not consume a failure attempt or lose the transcript.
+      await tx.$executeRaw`UPDATE processing_jobs SET state='failed' WHERE lecture_id='job'`
+      await queue.enqueueProcessingJob('job','alice',{})
+      const {ProviderRateLimitError}=require('../dist/utils/providerRetry.js')
+      stub(processor,'triggerLectureProcessing',async ()=>{throw new ProviderRateLimitError('safe cooldown',120)})
+      await queue.runProcessingQueueOnce()
+      assert.deepEqual(await queue.getProcessingJob('job','alice'),{state:'queued',attempts:0})
+      const cooldown=await tx.$queryRaw`SELECT options,last_error,EXTRACT(EPOCH FROM (available_at-clock_timestamp()))::integer AS seconds FROM processing_jobs WHERE lecture_id='job'`
+      assert.equal(cooldown[0].options._rateLimitRetries,1)
+      assert.ok(cooldown[0].seconds>=100)
+      assert.match(cooldown[0].last_error,/cooldown/)
       throw rollback
     },{timeout:240_000})
   } catch (error) {if(error!==rollback) throw error}

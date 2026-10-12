@@ -103,6 +103,7 @@ export function TranscriptPage() {
     phase,
     isLoading,
     isTranscribing,
+    isProcessingNotes,
     transcriptionProgress,
     overallProgress,
     interimText,
@@ -566,6 +567,11 @@ export function TranscriptPage() {
                 >
                   {showTranscript ? (
                     <>
+                      {isProcessingNotes && <p role="status" className="mb-4 rounded-xl border border-accent/20 bg-accent/[0.06] p-3 text-sm text-muted">Notes are processing in the background. You can read the transcript now.</p>}
+                      {error && <div role="alert" className="mb-4 rounded-xl border border-red/20 bg-red/[0.06] p-3 text-sm text-muted">
+                        <p>{error}</p>
+                        <button type="button" onClick={() => void retryTranscription()} className="mt-2 font-medium text-accent">Retry Processing</button>
+                      </div>}
                       <p className="text-center text-xs text-muted/65 select-none pb-4 pt-1 font-medium tracking-wide border-b border-white/[0.04] mb-6">
                         Click any word to jump there · Select text for actions
                       </p>

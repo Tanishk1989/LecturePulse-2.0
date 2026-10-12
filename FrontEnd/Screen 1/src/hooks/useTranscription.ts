@@ -35,6 +35,7 @@ interface UseTranscriptionResult {
   phase: TranscriptionPhase
   isLoading: boolean
   isTranscribing: boolean
+  isProcessingNotes: boolean
   transcriptionProgress: TranscriptionProgress | null
   overallProgress: number
   interimText: string
@@ -117,7 +118,13 @@ export function useTranscription(
       setTranscript(existing)
       setIsBackgroundProcessing(processingStatus.isProcessing)
 
-      if (processingStatus.isProcessing) {
+      if (existing?.status === 'completed' && existing.text.trim()) {
+        setPhase('completed')
+        setTranscriptionProgress({ stage: 'saving', progress: 100, step: 'ready' })
+        if (processingStatus.stage === 'failed') {
+          setError('The transcript is ready, but remaining processing failed. Retry to finish generating notes.')
+        }
+      } else if (processingStatus.isProcessing) {
         setPhase('transcribing')
         setTranscriptionProgress({
           stage: processingStatus.stage === 'generating_notes' ? 'saving' : 'transcribing',
@@ -248,6 +255,7 @@ export function useTranscription(
     phase,
     isLoading: phase === 'loading',
     isTranscribing: phase === 'transcribing',
+    isProcessingNotes: Boolean(transcript?.status === 'completed' && isBackgroundProcessing),
     transcriptionProgress,
     overallProgress,
     interimText,

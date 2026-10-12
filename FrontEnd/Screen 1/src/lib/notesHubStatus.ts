@@ -8,6 +8,7 @@ export function resolveHubStatus(
 ): NotesHubStatus {
   // Existing notes remain accessible even if a later processing attempt failed.
   if (notesStatus === 'completed') return 'ready'
+  if (lectureStatus === 'processing') return notesStatus === 'generating' ? 'generating' : 'processing_lecture'
   if (notesStatus === 'failed') return 'failed'
   if (lectureStatus === 'failed') return hasTranscript ? 'failed' : 'lecture_failed'
   if (!hasTranscript) {

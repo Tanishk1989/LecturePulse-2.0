@@ -103,6 +103,8 @@ export function useLectureNotes(
 
       if (existingNotes?.status === 'completed') {
         setPhase('completed')
+      } else if (processingStatus.isProcessing) {
+        setPhase('generating')
       } else if (existingNotes?.status === 'failed') {
         setPhase('failed')
         setError(existingNotes.errorMessage)

@@ -10,6 +10,15 @@ const {firebaseAuth}=require('../dist/config/firebase.js')
 const queue=require('../dist/services/processingQueue.js')
 const {deriveProcessingStatus}=require('../dist/utils/processingStatus.js')
 const router=require('../dist/routes/lectures.js').default
+const {providerRetryDelay,ProviderRateLimitError}=require('../dist/utils/providerRetry.js')
+
+test('provider cooldowns honor Retry-After, survive safe error wrapping and have bounded defaults',()=>{
+  assert.equal(providerRetryDelay({status:429,headers:{'retry-after':'120'}}),120)
+  assert.equal(providerRetryDelay(new ProviderRateLimitError('Rate limit',90)),90)
+  assert.equal(providerRetryDelay(new Error('Groq rate limit reached.')),60)
+  assert.equal(providerRetryDelay({status:429,headers:{'retry-after':'broken'}}),60)
+  assert.equal(providerRetryDelay(new Error('unrelated failure')),null)
+})
 
 test('derived statuses distinguish not started, notes generation, notes failure and completion',()=>{
   assert.equal(deriveProcessingStatus('uploaded',null,null).stage,'not_started')
