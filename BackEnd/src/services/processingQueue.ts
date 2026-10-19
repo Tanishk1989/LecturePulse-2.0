@@ -63,7 +63,19 @@ export async function runProcessingQueueOnce() {
         RETURNING j.lecture_id AS "lectureId",j.user_id AS "userId",j.options,j.attempts`
     const job = jobs[0]
     if (!job) return
-    const permit = await acquireAiPermit(job.userId)
+    let permit: Awaited<ReturnType<typeof acquireAiPermit>>
+    try {
+      permit = await acquireAiPermit(job.userId)
+    } catch {
+      // A transient limiter/database failure is not a failed transcription attempt.
+      // Release our claim promptly rather than leaving a false running job for 3 minutes.
+      await prisma.$executeRaw`
+        UPDATE processing_jobs SET state='queued',attempts=GREATEST(0,attempts-1),
+          available_at=clock_timestamp()+INTERVAL '30 seconds',lease_until=NULL,lease_token=NULL,
+          last_error='Processing is waiting for the service to recover. It will retry automatically.',updated_at=NOW()
+        WHERE lecture_id=${job.lectureId} AND state='running' AND lease_token=${token}`
+      return
+    }
     if (!permit.token) {
       const seconds = Math.max(5, permit.retryAfter ?? 30)
       await prisma.$executeRaw`UPDATE processing_jobs SET state='queued',attempts=attempts-1,
