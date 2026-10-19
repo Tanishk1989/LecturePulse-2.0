@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, Clock, FileText, XCircle } from 'lucide-react'
 import { FadeUp } from '@/components/effects/FadeUp'
-import { NotesHubCard, notesHubStats } from '@/components/notes/NotesHubCard'
+import { NotesHubCard } from '@/components/notes/NotesHubCard'
+import { countHubStatuses, resolveHubStatus } from '@/lib/notesHubStatus'
+import { getLectureMediaKind } from '@/lib/lectureFilters'
 import { NotesHubEmptyState } from '@/components/notes/NotesHubEmptyState'
 import { DashboardPageHeader, DashboardPageShell } from '@/components/dashboard/ui/DashboardPageShell'
 import { Skeleton } from '@/components/dashboard/ui/Skeleton'
@@ -76,7 +78,12 @@ export function SmartNotesPage() {
     [notes],
   )
 
-  const stats = useMemo(() => notesHubStats(notes), [notes])
+  const stats = useMemo(() => countHubStatuses(lectures.map(lecture => resolveHubStatus(
+    lecture.status,
+    notesByLecture.get(lecture.id)?.status ?? null,
+    transcriptIds.has(lecture.id),
+    getLectureMediaKind(lecture) === 'pdf',
+  ))), [lectures, notesByLecture, transcriptIds])
 
   const loading = lecturesLoading || notesLoading || transcriptsLoading
   const error = lecturesError || notesError || transcriptError
@@ -92,11 +99,12 @@ export function SmartNotesPage() {
 
       {!loading && !error && lectures.length > 0 && (
         <FadeUp delay={0.05}>
-          <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <StatPill label="Total notes" value={stats.total} icon={FileText} tone="accent" />
+          <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <StatPill label="Total lectures" value={stats.total} icon={FileText} tone="accent" />
             <StatPill label="Ready" value={stats.ready} icon={CheckCircle2} tone="emerald" />
             <StatPill label="In progress" value={stats.pending} icon={Clock} tone="sky" />
             <StatPill label="Failed" value={stats.failed} icon={XCircle} tone="red" />
+            <StatPill label="Needs action" value={stats.notStarted} icon={Clock} tone="accent" />
           </div>
         </FadeUp>
       )}

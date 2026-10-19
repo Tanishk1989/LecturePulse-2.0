@@ -5,7 +5,7 @@ import ts from 'typescript'
 import vm from 'node:vm'
 const compile = source => ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2023,module:ts.ModuleKind.ESNext}}).outputText
 const load = async file => import(`data:text/javascript;base64,${Buffer.from(compile(await readFile(new URL(file,import.meta.url),'utf8'))).toString('base64')}`)
-const {resolveHubStatus} = await load('../src/lib/notesHubStatus.ts')
+const {resolveHubStatus,countHubStatuses} = await load('../src/lib/notesHubStatus.ts')
 const {getLectureStatusLabel} = await load('../src/lib/lectureStatus.ts')
 
 test('unstarted uploads are not perpetual processing or generated-title placeholders',()=>{
@@ -27,6 +27,18 @@ test('notes-only failures retry notes; real active processing and PDF extraction
   assert.equal(resolveHubStatus('uploaded',null,false,true),'needs_pdf_text')
   assert.equal(resolveHubStatus('completed',null,true,false),'no_notes')
   assert.equal(resolveHubStatus('processing','generating',true,false),'generating')
+})
+
+test('hub counts match every visible lecture card, including failed lectures without notes',()=>{
+  const statuses = [
+    resolveHubStatus('completed','completed',true,false),
+    resolveHubStatus('failed',null,false,false),
+    resolveHubStatus('failed','failed',true,false),
+    resolveHubStatus('processing',null,false,false),
+    resolveHubStatus('uploaded',null,false,false),
+    resolveHubStatus('uploaded',null,false,true),
+  ]
+  assert.deepEqual(countHubStatuses(statuses),{total:6,ready:1,pending:1,failed:2,notStarted:2})
 })
 
 test('unstarted transcription begins directly and duplicate retries preserve the existing transcript',async()=>{
@@ -57,13 +69,15 @@ test('unstarted transcription begins directly and duplicate retries preserve the
   effects.at(-1)()
   await new Promise(resolve=>setImmediate(resolve))
   assert.equal(calls.length,1)
-  assert.equal(statusChecks,0,'the completed refresh is sufficient; no second status read is needed')
+  assert.equal(statusChecks,1,'status is refreshed after the enqueue write, not before it')
   enqueue=(id,options)=>{calls.push({id,options});return new Promise(resolve=>{release=resolve})}
   const retry=hook.retryTranscription()
+  assert.equal(values[5],false,'do not poll the old failed job while enqueue is pending')
   await hook.retryTranscription()
   assert.equal(calls.length,2,'duplicate retry clicks enqueue only once')
   assert.equal(calls[1].options.forceRetranscribe,false)
   release();await retry
+  assert.equal(statusChecks,2,'retry refreshes the newly enqueued job after acknowledgement')
   dependencies['@/services/transcriptionService'].getTranscriptByLectureId=async()=>({status:'completed',text:'Saved transcript'})
   dependencies['@/services/processingService'].getLectureProcessingStatus=async()=>({isProcessing:false,stage:'failed'})
   await hook.refresh()
@@ -72,4 +86,8 @@ test('unstarted transcription begins directly and duplicate retries preserve the
   assert.equal(recovered.phase,'completed','a notes failure must not hide a completed transcript')
   assert.equal(recovered.transcript.text,'Saved transcript')
   assert.match(recovered.error,/transcript is ready/)
+  enqueue=async()=>{throw new Error('Temporarily unavailable')}
+  await recovered.retryTranscription()
+  index=0
+  assert.equal(exports.useTranscription('owned','https://www.youtube.com/watch?v=abcdefghijk').phase,'completed','enqueue failures must also keep a completed transcript readable')
 })

@@ -198,10 +198,3 @@ export function NotesHubCard({ lecture, notes, hasTranscript }: NotesHubCardProp
     </article>
   )
 }
-
-export function notesHubStats(notes: LectureNotes[]) {
-  const ready = notes.filter((n) => n.status === 'completed').length
-  const pending = notes.filter((n) => n.status === 'generating' || n.status === 'idle').length
-  const failed = notes.filter((n) => n.status === 'failed').length
-  return { total: notes.length, ready, pending, failed }
-}

@@ -176,7 +176,6 @@ export function useTranscription(
     setError(null)
     setInterimText('')
     setTranscriptionProgress({ stage: 'transcribing', progress: 20, step: 'transcribing' })
-    setIsBackgroundProcessing(true)
 
     try {
       if (isBackgroundProcessingAvailable()) {
@@ -184,6 +183,7 @@ export function useTranscription(
           generateNotes: true,
           ...getProcessingOptions(user.uid),
         })
+        await refresh()
         toast.success('Processing started. You can leave this page.')
       } else {
         throw new Error(AI_UNAVAILABLE_MESSAGE)
@@ -200,7 +200,7 @@ export function useTranscription(
     } finally {
       transcribingRef.current = false
     }
-  }, [audioUrl, canTranscribe, lectureId, onLectureStatusChange, toast, user])
+  }, [audioUrl, canTranscribe, lectureId, onLectureStatusChange, refresh, toast, user])
 
   const retryTranscription = useCallback(async () => {
     if (!user || !lectureId) return
@@ -209,8 +209,9 @@ export function useTranscription(
 
     autoStartedRef.current = true
     setError(null)
-    setIsBackgroundProcessing(true)
-    setPhase('transcribing')
+    // Do not poll the previous failed job before the enqueue write completes.
+    setIsBackgroundProcessing(false)
+    setPhase(transcript?.status === 'completed' && transcript.text.trim() ? 'completed' : 'transcribing')
     setTranscriptionProgress({ stage: 'transcribing', progress: 20, step: 'transcribing' })
 
     try {
@@ -220,18 +221,19 @@ export function useTranscription(
         forceRetranscribe: false,
         ...getProcessingOptions(user.uid),
       })
+      await refresh()
       onLectureStatusChange?.()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Processing failed.'
       setError(message)
-      setPhase('failed')
+      setPhase(transcript?.status === 'completed' && transcript.text.trim() ? 'completed' : 'failed')
       setIsBackgroundProcessing(false)
       setTranscriptionProgress(null)
       toast.error(message)
     } finally {
       transcribingRef.current = false
     }
-  }, [lectureId, onLectureStatusChange, toast, user])
+  }, [lectureId, onLectureStatusChange, refresh, toast, transcript, user])
 
   useEffect(() => {
     if (!autoTranscribe || !canTranscribe || !lectureId || !user) return

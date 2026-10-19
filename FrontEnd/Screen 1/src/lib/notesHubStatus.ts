@@ -21,3 +21,11 @@ export function resolveHubStatus(
   if (lectureStatus === 'processing') return 'processing_lecture'
   return 'no_notes'
 }
+
+export function countHubStatuses(statuses: NotesHubStatus[]) {
+  const ready = statuses.filter(status => status === 'ready').length
+  const pending = statuses.filter(status => status === 'generating' || status === 'processing_lecture').length
+  const failed = statuses.filter(status => status === 'failed' || status === 'lecture_failed').length
+  const notStarted = statuses.length - ready - pending - failed
+  return { total: statuses.length, ready, pending, failed, notStarted }
+}
